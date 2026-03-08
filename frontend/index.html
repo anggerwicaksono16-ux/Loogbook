@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-logbook aktivitas harian kapal patroli</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Global Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Firebase Extra Styles -->
+  <link rel="stylesheet" href="firebase-extra.css">
+</head>
+<body>
+  
+<!-- ══════════════════════════════════════════════
+     HEADER
+     ══════════════════════════════════════════════ -->
+<header>
+  <div class="header-left">
+    <div class="logo-emblem">
+      <img src="logo-kemenhub.jpeg" alt="Logo PIP Makassar" width="52" height="52" style="object-fit:contain;">
+    </div>
+    <div class="header-titles">
+      <h1>KSOP Utama Makassar · Kantor Kesyahbandaran</h1>
+      <p>E-logbook aktivitas harian kapal patroli &amp; Otoritas Pelabuhan</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div>
+      <div class="live-clock" id="clock">--:--:--</div>
+      <div class="live-date"  id="dateDisplay">--- , -- --- ----</div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      SISTEM AKTIF
+    </div>
+    <div class="user-info">
+      <div class="user-avatar" id="userAvatar">👤</div>
+      <div class="user-detail">
+        <div class="user-name" id="userName">Pengguna</div>
+        <div class="user-email" id="userEmail">—</div>
+      </div>
+    </div>
+    <button class="btn-logout" id="btnLogout" title="Keluar">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Keluar
+    </button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════
+     NAVIGATION
+     ══════════════════════════════════════════════ -->
+<nav>
+  <div class="nav-tab active" onclick="showPage('dashboard', this)">📊 Dashboard</div>
+  <div class="nav-tab"        onclick="showPage('input',     this)">✏️ Input Aktivitas</div>
+  <div class="nav-tab"        onclick="showPage('logbook',   this)">📋 Riwayat Logbook</div>
+  <div class="nav-tab"        onclick="showPage('kapal',     this)">🚢 Data Kapal</div>
+  <div class="nav-tab"        onclick="showPage('awak',      this)">👤 Awak Kapal</div>
+  <div class="nav-tab"        onclick="showPage('laporan',   this)">📄 Laporan</div>
+</nav>
+
+<!-- ══════════════════════════════════════════════
+     MAIN CONTENT
+     ══════════════════════════════════════════════ -->
+<main>
+
+  <!-- Page: Dashboard -->
+  <div id="page-dashboard" class="page active">
+    <!-- Header -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">DASHBOARD PATROLI</div>
+        <div class="page-subtitle">kantor kesyahbandaran dan otoritas pelabuhan utama makassar</div>
+      </div>
+      <button class="btn btn-outline" onclick="refreshDashboard()">↻ Refresh</button>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="stats-row">
+      <div class="stat-card cyan">
+        <div class="stat-label">Kapal Aktif Hari Ini</div>
+        <div class="stat-value" id="stat-aktif">—</div>
+        <div class="stat-sub">dari 6 unit armada</div>
+        <div class="stat-icon">🚢</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Total Aktivitas Bulan Ini</div>
+        <div class="stat-value" id="stat-total">—</div>
+        <div class="stat-sub">aktivitas tercatat</div>
+        <div class="stat-icon">📋</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Pelanggaran Tertangani</div>
+        <div class="stat-value" id="stat-pelanggaran">—</div>
+        <div class="stat-sub">kasus bulan ini</div>
+        <div class="stat-icon">⚠️</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Kapal Dalam Perbaikan</div>
+        <div class="stat-value" id="stat-perbaikan">—</div>
+        <div class="stat-sub">sedang maintenance</div>
+        <div class="stat-icon">🔧</div>
+      </div>
+    </div>
+
+    <!-- Timeline + Status Kapal -->
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Aktivitas Terkini</div>
+          <span class="badge badge-blue">Live</span>
+        </div>
+        <div class="card-body">
+          <div class="timeline" id="timeline-dashboard"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Status Kapal</div></div>
+        <div class="card-body p-12">
+          <div id="ship-status-mini" class="ship-status-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart + Recent Logbook -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Jenis Aktivitas Bulan Ini</div></div>
+        <div class="card-body"><div class="chart-bar-wrap" id="bar-chart"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Logbook Terakhir</div>
+          <button class="btn btn-outline btn-sm" onclick="showPage('logbook', document.querySelectorAll('.nav-tab')[2])">Lihat Semua</button>
+        </div>
+        <div class="card-body p-0">
+          <table>
+            <thead>
+              <tr><th>Kapal</th><th>Aktivitas</th><th>Waktu</th><th>Status</th></tr>
+            </thead>
+            <tbody id="tbl-recent"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div><!-- /page-dashboard -->
+
+
+  <!-- ══ Page: Input Aktivitas ══ -->
+  <div id="page-input" class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">INPUT AKTIVITAS HARIAN</div>
+        <div class="page-subtitle">Catat setiap kegiatan patroli dan aktivitas kapal</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Form Entri Logbook</div>
+        <div class="form-noref" id="form-noref">No. Ref: AUTO</div>
+      </div>
+      <div class="card-body">
+
+        <!-- 1. Identitas -->
+        <div class="form-section">
+          <div class="form-section-title">📌 Identitas Kapal &amp; Personel</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nama Kapal *</label>
+              <select id="f-kapal" required>
+                <option value="">— Pilih Kapal —</option>
+                <option>KP. MAKASSAR I</option>
+                <option>KP. MAKASSAR II</option>
+                <option>KP. SPICA</option>
+                <option>KP. ANTASENA</option>
+                <option>KP. TRISULA</option>
+                <option>KP. KERAPU</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nakhoda *</label>
+              <select id="f-nakhoda" required>
+                <option value="">— Pilih Nakhoda —</option>
+                <option>Capt. Ahmad Fauzi, ANT-II</option>
+                <option>Capt. Budi Santoso, ANT-III</option>
+                <option>Capt. Hendra Wijaya, ANT-II</option>
+                <option>Capt. Rizky Pratama, ANT-III</option>
+                <option>Capt. Syarifuddin, ANT-II</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Jumlah ABK *</label>
+              <input type="number" id="f-abk" placeholder="0" min="1" max="30">
+            </div>
+            <div class="form-group">
+              <label>Tanggal *</label>
+              <input type="date" id="f-tanggal" required>
+            </div>
+            <div class="form-group">
+              <label>Jam Berangkat *</label>
+              <input type="time" id="f-jam-berangkat" required>
+            </div>
+            <div class="form-group">
+              <label>Jam Kembali</label>
+              <input type="time" id="f-jam-kembali">
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Jenis Aktivitas -->
+        <div class="form-section">
+          <div class="form-section-title">⚓ Jenis Aktivitas</div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label>Jenis Aktivitas *</label>
+              <select id="f-jenis" required>
+                <option value="">— Pilih Jenis —</option>
+                <option>Patroli Rutin</option>
+                <option>Standby</option>
+                <option>Pemeriksaan Kapal</option>
+                <option>Bunker</option>
+                <option>Pengawalan</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Wilayah / Area Patroli *</label>
+              <input type="text" id="f-wilayah" placeholder="Tulis wilayah / area patroli..." required>
+            </div>
+          </div>
+          <div class="form-group" class="mt-12">
+            <label>Deskripsi Aktivitas</label>
+            <textarea id="f-deskripsi" rows="3" placeholder="Tuliskan deskripsi singkat mengenai aktivitas yang dilakukan..." class="textarea-resizable"></textarea>
+          </div>
+        </div>
+
+        <!-- 3. Kondisi Cuaca -->
+        <div class="form-section">
+          <div class="form-section-title">🌊 Kondisi &amp; Cuaca</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kondisi Cuaca</label>
+              <select id="f-cuaca">
+                <option>Cerah</option><option>Berawan</option>
+                <option>Hujan Ringan</option><option>Hujan Lebat</option>
+                <option>Kabut</option><option>Badai</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Tinggi Gelombang (m)</label>   <input type="number" id="f-gelombang" placeholder="0.0" step="0.1" min="0"></div>
+            <div class="form-group"><label>Kecepatan Angin (knot)</label> <input type="number" id="f-angin"     placeholder="0"   min="0"></div>
+            <div class="form-group"><label>Kecepatan Kapal (knot)</label> <input type="number" id="f-kecepatan" placeholder="0"   min="0" max="40"></div>
+            <div class="form-group"><label>Jarak Tempuh (nm)</label>      <input type="number" id="f-jarak"     placeholder="0.0" step="0.1" min="0"></div>
+
+          </div>
+        </div>
+
+        <!-- 4. Temuan & Tindakan -->
+        <div class="form-section">
+          <div class="form-section-title">⚠️ Temuan &amp; Tindakan</div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label>Jenis Temuan / Pelanggaran</label>
+              <select id="f-temuan">
+                <option value="">— Tidak Ada Temuan —</option>
+                <option>Kapal Tidak Memiliki Dokumen Lengkap</option>
+                <option>Pelanggaran Jalur Pelayaran</option>
+                <option>Pencemaran Laut (Pembuangan Limbah)</option>
+                <option>Penangkapan Ikan Illegal (Ilegal Fishing)</option>
+                <option>Kapal Tanpa Identitas (Ghost Vessel)</option>
+                <option>ABK Tidak Memiliki Sertifikat</option>
+                <option>Pelanggaran Kecepatan di Area Terlarang</option>
+                <option>Kecelakaan Kapal</option>
+                <option>Orang Dalam Bahaya (SOLAS)</option>
+                <option>Muatan Berbahaya Tidak Terdeklar</option>
+                <option>Penyelundupan</option>
+                <option>Lainnya</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tindakan yang Diambil</label>
+              <select id="f-tindakan">
+                <option value="">— Tidak Ada —</option>
+                <option>Peringatan Lisan</option>
+                <option>Surat Peringatan Tertulis</option>
+                <option>Penahanan Kapal (Detention)</option>
+                <option>Penyitaan Dokumen</option>
+                <option>Penyerahan ke Polisi / PPNS</option>
+                <option>Pertolongan / Evakuasi</option>
+                <option>Penyegelan Kapal</option>
+                <option>Koordinasi dengan Instansi Terkait</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" class="mt-14">
+            <label>Nomor Kapal yang Diperiksa / Kena Tindak</label>
+            <input type="text" id="f-no-kapal" placeholder="Contoh: IMO 1234567, GT 300, KM. Harapan Jaya">
+          </div>
+          <div class="form-group" class="mt-14">
+            <label>Uraian Kegiatan *</label>
+            <textarea id="f-uraian" rows="4" placeholder="Tuliskan secara lengkap kronologi dan uraian kegiatan patroli..."></textarea>
+          </div>
+          <div class="form-group" class="mt-14">
+            <label>Catatan Tambahan</label>
+            <textarea id="f-catatan" rows="2" placeholder="Catatan khusus, rekomendasi, atau informasi penting lainnya..."></textarea>
+          </div>
+        </div>
+
+        <!-- 5. Kondisi Mesin -->
+        <div class="form-section">
+          <div class="form-section-title">🔧 Kondisi Mesin &amp; Kapal</div>
+          <div class="form-grid-4">
+            <div class="form-group">
+              <label>Kondisi Mesin Utama</label>
+              <select id="f-mesin">
+                <option>Baik</option><option>Ada Gangguan Minor</option>
+                <option>Perlu Perbaikan</option><option>Tidak Beroperasi</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Kondisi Navigasi</label>
+              <select id="f-navigasi">
+                <option>Baik</option><option>Ada Gangguan Minor</option><option>Perlu Perbaikan</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Kondisi Komunikasi</label>
+              <select id="f-komunikasi">
+                <option>Baik</option><option>Ada Gangguan</option><option>Tidak Berfungsi</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status Kapal Setelah</label>
+              <select id="f-status-kapal">
+                <option>Siap Bertugas</option><option>Standby di Dermaga</option>
+                <option>Dalam Perawatan</option><option>Docking</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Dokumentasi -->
+        <div class="form-section">
+          <div class="form-section-title">📷 Dokumentasi (Foto — Maks 5)</div>
+          <div class="form-group">
+            <label>Pilih Foto</label>
+            <input type="file" id="f-foto" accept="image/*" multiple onchange="handleFotoUpload(this)" class="file-input">
+          </div>
+          <div id="foto-preview" class="foto-preview-wrap"></div>
+          <div id="foto-count" class="foto-count-text"></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-outline" onclick="resetForm()">↺ Reset Form</button>
+          <button class="btn btn-gold"    onclick="saveLogbook()">💾 Simpan Logbook</button>
+        </div>
+      </div><!-- /card-body -->
+    </div><!-- /card -->
+  </div><!-- /page-input -->
+
+
+  <!-- ══ Page: Riwayat Logbook ══ -->
+  <div id="page-logbook" class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">RIWAYAT LOGBOOK</div>
+        <div class="page-subtitle">Seluruh catatan aktivitas kapal patroli</div>
+      </div>
+      <div class="page-actions">
+        <div class="export-dropdown">
+          <button class="btn btn-outline" onclick="toggleExportMenu(event)">⬇ Export <span style="font-size:10px;">▾</span></button>
+          <div class="export-menu" id="export-menu">
+            <div class="export-menu-item" onclick="exportCSV()">📊 Export CSV</div>
+            <div class="export-menu-item" onclick="exportPDF()">📄 Export PDF</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="showPage('input', document.querySelectorAll('.nav-tab')[1])">+ Entri Baru</button>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-body p-filter">
+        <div class="form-grid-4">
+          <div class="form-group">
+            <label>Filter Kapal</label>
+            <select id="filter-kapal" onchange="filterLogbook()">
+              <option value="">Semua Kapal</option>
+              <option>KP. MAKASSAR I</option><option>KP. MAKASSAR II</option>
+              <option>KP. SPICA</option><option>KP. ANTASENA</option>
+              <option>KP. TRISULA</option><option>KP. KERAPU</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Filter Aktivitas</label>
+            <select id="filter-jenis" onchange="filterLogbook()">
+              <option value="">Semua Jenis</option>
+              <option>Patroli Rutin</option><option>Pemeriksaan Kapal</option>
+              <option>SAR</option><option>Penegakan Hukum</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tanggal Dari</label>
+            <input type="date" id="filter-dari" onchange="filterLogbook()">
+          </div>
+          <div class="form-group">
+            <label>Tanggal Sampai</label>
+            <input type="date" id="filter-sampai" onchange="filterLogbook()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+      <div class="card-body p-0">
+        <table>
+          <thead>
+            <tr>
+              <th>No. Ref</th><th>Tanggal</th><th>Kapal</th><th>Nakhoda</th>
+              <th>Aktivitas</th><th>Wilayah</th><th>Deskripsi</th><th>Status</th><th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-logbook-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /page-logbook -->
+
+
+  <!-- ══ Page: Data Kapal ══ -->
+  <div id="page-kapal" class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">DATA ARMADA KAPAL PATROLI</div>
+        <div class="page-subtitle">Inventaris dan status operasional seluruh unit kapal</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModalKapal()">+ Tambah Kapal</button>
+    </div>
+    <div class="ship-grid" id="ship-grid-container">
+      <!-- Populated by renderKapal() in app.js -->
+    </div>
+  </div><!-- /page-kapal -->
+
+
+  <!-- ══ Page: Awak Kapal ══ -->
+  <div id="page-awak" class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">DATA AWAK KAPAL</div>
+        <div class="page-subtitle">Daftar personel dan penugasan kapal patroli</div>
+      </div>
+      <button class="btn btn-primary" onclick="document.getElementById('modal-awak').classList.add('open')">+ Tambah Personel</button>
+    </div>
+    <div class="card">
+      <div class="card-body p-0">
+        <table>
+          <thead>
+            <tr>
+              <th>NIP / No. Sertifikat</th><th>Nama Lengkap</th><th>Jabatan</th>
+              <th>Sertifikat</th><th>Kapal Ditugaskan</th><th>Masa Berlaku</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-awak"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /page-awak -->
+
+
+  <!-- ══ Page: Laporan ══ -->
+  <div id="page-laporan" class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">LAPORAN &amp; REKAP</div>
+        <div class="page-subtitle">Generate laporan aktivitas patroli berkala</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Generate Laporan</div></div>
+        <div class="card-body">
+          <div class="form-section form-section--sm">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>Jenis Laporan</label>
+                <select id="lap-jenis">
+                  <option>Laporan Harian</option><option>Laporan Mingguan</option>
+                  <option>Laporan Bulanan</option><option>Laporan Tahunan</option>
+                  <option>Laporan Insiden Khusus</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Periode</label>
+                <input type="month" id="lap-periode">
+              </div>
+              <div class="form-group">
+                <label>Kapal</label>
+                <select id="lap-kapal">
+                  <option value="">Semua Kapal</option>
+                  <option>KP. MAKASSAR I</option><option>KP. MAKASSAR II</option>
+                  <option>KP. SPICA</option><option>KP. ANTASENA</option>
+                  <option>KP. TRISULA</option><option>KP. KERAPU</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Format Output</label>
+                <select id="lap-format">
+                  <option>PDF</option><option>Excel (CSV)</option><option>Print Preview</option>
+                </select>
+              </div>
+            </div>
+            <div class="mt-16">
+              <button class="btn btn-primary" onclick="generateReport()" class="btn-full">📄 Generate Laporan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Rekap Bulanan</div></div>
+        <div class="card-body"><div id="rekap-bulanan"></div></div>
+      </div>
+    </div>
+  </div><!-- /page-laporan -->
+
+</main><!-- /main -->
+
+
+<!-- ══════════════════════════════════════════════
+     MODAL — Tambah Awak Kapal
+     ══════════════════════════════════════════════ -->
+<div id="modal-awak" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Tambah Personel</div>
+      <button class="modal-close" onclick="document.getElementById('modal-awak').classList.remove('open')">✕</button>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group"><label>Nama Lengkap</label><input type="text" id="m-nama" placeholder="Nama personel"></div>
+      <div class="form-group"><label>NIP / No. Pelaut</label><input type="text" id="m-nip" placeholder="NIP atau nomor pelaut"></div>
+      <div class="form-group">
+        <label>Jabatan</label>
+        <select id="m-jabatan">
+          <option>Nakhoda</option><option>Mualim I</option><option>Mualim II</option>
+          <option>KKM (Chief Engineer)</option><option>Masinis II</option>
+          <option>Juru Mudi</option><option>Masinis III</option><option>Kelasi</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Kapal Ditugaskan</label>
+        <select id="m-kapal">
+          <option>KP. MAKASSAR I</option><option>KP. MAKASSAR II</option>
+          <option>KP. SPICA</option><option>KP. ANTASENA</option>
+          <option>KP. TRISULA</option><option>KP. KERAPU</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Sertifikat</label><input type="text" id="m-sertifikat" placeholder="Contoh: ANT-II, ATT-III"></div>
+      <div class="form-group"><label>Masa Berlaku</label><input type="date" id="m-berlaku"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="document.getElementById('modal-awak').classList.remove('open')">Batal</button>
+      <button class="btn btn-primary" onclick="saveAwak()">Simpan Personel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MODAL — Detail Log Aktivitas
+     ══════════════════════════════════════════════ -->
+<div id="modal-detail" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Detail Log Aktivitas</div>
+      <button class="modal-close" onclick="closeDetailLog()">&#x2715;</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-left">
+        <div>
+          <div class="detail-field-label">Kapal</div>
+          <div class="detail-field-value big" id="dl-kapal">—</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Tanggal &amp; Aktivitas</div>
+          <div class="detail-field-value mono" id="dl-tanggal-jenis">—</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Waktu Operasional</div>
+          <div class="detail-field-value mono" id="dl-waktu">—</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Lokasi &amp; Wilayah</div>
+          <div class="detail-field-value" id="dl-lokasi">—</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Nakhoda / Petugas</div>
+          <div class="detail-field-value" id="dl-nakhoda">—</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Deskripsi</div>
+          <div class="detail-field-value" id="dl-deskripsi" class="dl-deskripsi">—</div>
+        </div>
+        <div>
+          <div class="detail-field-label">Temuan / Status</div>
+          <div class="detail-field-value" id="dl-temuan">—</div>
+        </div>
+      </div>
+      <div class="detail-right">
+        <div class="detail-dok-label" id="dl-dok-label">DOKUMENTASI</div>
+        <div class="detail-dok-grid" id="dl-foto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MODAL — Tambah / Edit Kapal
+     ══════════════════════════════════════════════ -->
+<div id="modal-kapal" class="modal-overlay">
+  <div class="modal">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-title" id="modal-kapal-title">Tambah Kapal Baru</div>
+      <button class="modal-close" onclick="closeModalKapal()">&#x2715;</button>
+    </div>
+
+    <!-- Body -->
+    <div class="mk-body">
+
+      <!-- Identitas -->
+      <div class="mk-row-3">
+        <div class="form-group">
+          <label>Nama Kapal *</label>
+          <input type="text" id="mk-nama" placeholder="KP. MAKASSAR III">
+        </div>
+        <div class="form-group">
+          <label>Kode / Call Sign</label>
+          <input type="text" id="mk-callsign" placeholder="P-350">
+        </div>
+        <div class="form-group">
+          <label>Kelas Kapal</label>
+          <select id="mk-kelas">
+            <option>Patroli</option><option>SAR</option>
+            <option>Inspeksi</option><option>Tunda</option><option>Lainnya</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Ship Particulars -->
+      <div class="mk-section">
+        <div class="mk-section-title">&#9875; Ship Particulars</div>
+        <div class="mk-row-4">
+          <div class="form-group"><label>Panjang Kapal</label><input type="text" id="mk-ukuran" placeholder="28.5 m"></div>
+          <div class="form-group"><label>Konstruksi</label><input type="text" id="mk-konstruksi" placeholder="Baja / Aluminium"></div>
+          <div class="form-group"><label>GT</label><input type="text" id="mk-gt" placeholder="98 GT"></div>
+          <div class="form-group"><label>Tahun Buat</label><input type="number" id="mk-tahun" placeholder="2020" min="1900" max="2100"></div>
+        </div>
+        <div class="mk-row-4">
+          <div class="form-group"><label>Kapasitas BBM (L)</label><input type="text" id="mk-bbm" placeholder="8,000"></div>
+          <div class="form-group"><label>Air Tawar (L)</label><input type="text" id="mk-air" placeholder="2,000"></div>
+          <div class="form-group"><label>Jumlah Crew</label><input type="number" id="mk-crew" placeholder="0" min="1"></div>
+          <div class="form-group"><label>Tanki Harian (L)</label><input type="text" id="mk-tanki" placeholder="500"></div>
+        </div>
+      </div>
+
+      <!-- Main Engine & Auxiliary Engine -->
+      <div class="mk-engine-wrap">
+        <div class="mk-engine-box">
+          <div class="mk-section-title">&#9881; Main Engine</div>
+          <div class="form-group" class="mb-10"><label>Merk / Type</label><input type="text" id="mk-me-merk" placeholder="MAN B&amp;W"></div>
+          <div class="form-group" class="mb-10"><label>Daya (HP)</label><input type="text" id="mk-me-daya" placeholder="2&#xD7;1200 HP"></div>
+          <div class="mk-row-2">
+            <div class="form-group"><label>Konsumsi BBM (L/Jam)</label><input type="text" id="mk-me-hpbbm" placeholder="0"></div>
+            <div class="form-group"><label>Kecepatan (Knot)</label><input type="text" id="mk-me-kecepatan" placeholder="0"></div>
+          </div>
+        </div>
+        <div class="mk-engine-box">
+          <div class="mk-section-title">&#128295; Auxiliary Engine</div>
+          <div class="form-group" class="mb-10"><label>Merk / Type</label><input type="text" id="mk-ae-merk" placeholder="Yanmar"></div>
+          <div class="form-group" class="mb-10"><label>Daya (HP)</label><input type="text" id="mk-ae-daya" placeholder="2&#xD7;450 HP"></div>
+          <div class="mk-row-2">
+            <div class="form-group"><label>Konsumsi BBM (L/Jam)</label><input type="text" id="mk-ae-hpbbm" placeholder="0"></div>
+            <div class="form-group"><label>Kecepatan (Knot)</label><input type="text" id="mk-ae-kecepatan" placeholder="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IMO & Status -->
+      <div class="mk-row-2">
+        <div class="form-group"><label>IMO / No. Registrasi</label><input type="text" id="mk-imo" placeholder="IMO-1234567"></div>
+        <div class="form-group">
+          <label>Status Operasional</label>
+          <select id="mk-status">
+            <option value="patrol">Patroli</option>
+            <option value="standby">Standby</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
+      </div>
+
+    </div><!-- /mk-body -->
+
+    <!-- Footer Buttons -->
+    <div class="mk-footer">
+      <button class="btn btn-outline" onclick="closeModalKapal()">Batal</button>
+      <button class="btn btn-primary" onclick="saveKapal()">&#128674; Simpan Kapal</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TOAST NOTIFICATION
+     ══════════════════════════════════════════════ -->
+<div class="toast" id="toast">
+  <span>✓</span>
+  <span id="toast-msg">Data berhasil disimpan</span>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SCRIPTS — satu module tunggal, urutan dijamin
+     ══════════════════════════════════════════════ -->
+<script type="module" src="main.js"></script>
+<script type="module" src="app.js"></script>
+<script type="module" src="dashboard.js"></script>
+<script type="module" src="data.js"></script>
+<script type="module" src="logbook.js"></script>
+<script>
+  // ── Auth Guard & Session Handler ──────────────────────────────
+  (function() {
+    const role  = sessionStorage.getItem('user_role');
+    const uid   = sessionStorage.getItem('user_uid');
+
+    // Jika tidak ada sesi sama sekali, redirect ke login
+    if (!role && !uid) {
+      window.location.replace('login.html');
+      return;
+    }
+
+    // Tampilkan info user dari sessionStorage
+    const name  = sessionStorage.getItem('user_name')  || 'Pengguna';
+    const email = sessionStorage.getItem('user_email') || '—';
+    const photo = sessionStorage.getItem('user_photo') || '';
+
+    const nameEl   = document.getElementById('userName');
+    const emailEl  = document.getElementById('userEmail');
+    const avatarEl = document.getElementById('userAvatar');
+
+    if (nameEl)  nameEl.textContent  = name;
+    if (emailEl) emailEl.textContent = email;
+    if (avatarEl) {
+      if (photo) {
+        avatarEl.innerHTML = `<img src="${photo}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+      } else {
+        // Inisial nama sebagai avatar
+        const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        avatarEl.textContent = initials || '👤';
+      }
+    }
+
+    // Fungsi logout untuk Admin (hapus sesi & redirect)
+    function adminLogout() {
+      sessionStorage.clear();
+      window.location.replace('login.html');
+    }
+
+    // Tombol logout
+    const btnLogout = document.getElementById('btnLogout');
+    if (btnLogout) {
+      if (role === 'Admin') {
+        btnLogout.onclick = adminLogout;
+      }
+      // Untuk Operator, logout Firebase di-handle oleh module script2.js di bawah
+    }
+  })();
+</script>
+<script type="module">
+  import { logoutUser } from './script2.js';
+  const role = sessionStorage.getItem('user_role');
+  // Hanya pasang logoutUser Firebase untuk Operator
+  if (role !== 'Admin') {
+    document.getElementById('btnLogout').onclick = logoutUser;
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,130 @@
+/* ══════════════════════════════════════════════
+   firebase-extra.css
+   Style tambahan untuk elemen yang di-render JS
+   (timeline, bar chart, ship mini, rekap, dll.)
+   ══════════════════════════════════════════════ */
+
+/* ── Utility ── */
+.text-center  { text-align: center; }
+.text-red     { color: #e05252 !important; }
+.text-xs      { font-size: 11px; }
+.mono         { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.desc-cell    { max-width: 200px; word-break: break-word; }
+.row-clickable{ cursor: pointer; transition: background .15s; }
+.row-clickable:hover { background: rgba(0,198,198,.06); }
+
+/* ── Loading / Empty ── */
+.loading-text { padding: 24px; text-align: center; color: #8898aa; font-size: 13px; }
+.empty-state  { padding: 32px; text-align: center; color: #8898aa; font-size: 13px; line-height: 1.6; }
+.empty-state.sm { padding: 16px; }
+.empty-state.error { color: #e05252; }
+
+/* ── Toast tambahan ── */
+.toast        { position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+                background: #1e3a5f; color: #fff; padding: 12px 20px;
+                border-radius: 8px; display: flex; gap: 8px; align-items: center;
+                box-shadow: 0 4px 20px rgba(0,0,0,.35);
+                transform: translateY(80px); opacity: 0;
+                transition: transform .3s, opacity .3s; pointer-events: none; }
+.toast.show   { transform: translateY(0); opacity: 1; pointer-events: auto; }
+.toast-warn   { background: #7a5c00; border-left: 3px solid #f0c040; }
+.toast-error  { background: #5c1a1a; border-left: 3px solid #e05252; }
+
+/* ── Badge extras ── */
+.badge        { display: inline-block; padding: 2px 8px; border-radius: 20px;
+                font-size: 11px; font-weight: 600; letter-spacing: .4px; }
+.badge-green  { background: rgba(78,203,113,.15); color: #4ecb71; }
+.badge-blue   { background: rgba(0,198,198,.12);  color: #00c6c6; }
+.badge-red    { background: rgba(224,82,82,.15);  color: #e05252; }
+.badge-gold   { background: rgba(240,192,64,.15); color: #f0c040; }
+.badge-xs     { font-size: 10px; padding: 1px 6px; }
+
+/* ── Buttons ── */
+.btn-xs       { padding: 3px 8px !important; font-size: 11px !important; }
+.btn-danger   { border-color: #e05252 !important; color: #e05252 !important; }
+.btn-danger:hover { background: rgba(224,82,82,.1) !important; }
+
+/* ── Timeline ── */
+.timeline        { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; }
+.timeline-item   { display: flex; gap: 12px; align-items: flex-start; }
+.timeline-dot    { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.dot-cyan        { background: #00c6c6; box-shadow: 0 0 6px #00c6c6; }
+.dot-red         { background: #e05252; box-shadow: 0 0 6px #e05252; }
+.dot-green       { background: #4ecb71; box-shadow: 0 0 6px #4ecb71; }
+.dot-gold        { background: #f0c040; box-shadow: 0 0 6px #f0c040; }
+.timeline-content{ flex: 1; }
+.timeline-title  { font-size: 13px; font-weight: 600; color: #d0e8ff; }
+.timeline-sub    { font-size: 11px; color: #8898aa; margin-top: 2px; }
+.timeline-time   { font-size: 10px; color: #5a7090; margin-top: 2px;
+                   font-family: 'JetBrains Mono', monospace; }
+
+/* ── Ship status mini ── */
+.ship-status-list { display: flex; flex-direction: column; gap: 10px; }
+.ship-mini-row    { display: flex; align-items: center; gap: 10px; }
+.ship-mini-dot    { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ship-mini-name   { flex: 1; font-size: 13px; font-weight: 600; color: #d0e8ff; }
+.ship-mini-status { font-size: 11px; color: #8898aa; }
+
+/* ── Bar chart ── */
+.chart-bar-wrap   { height: 180px; display: flex; align-items: flex-end; overflow: hidden; }
+.bar-chart-inner  { display: flex; align-items: flex-end; gap: 10px;
+                    height: 100%; width: 100%; padding-bottom: 4px; }
+.bar-group        { display: flex; flex-direction: column; align-items: center;
+                    flex: 1; height: 100%; justify-content: flex-end; gap: 4px; }
+.bar-col-wrap     { display: flex; flex-direction: column; align-items: center;
+                    width: 100%; flex: 1; justify-content: flex-end; gap: 4px; }
+.bar-val          { font-size: 11px; font-weight: 700; color: #d0e8ff; }
+.bar-col          { width: 100%; border-radius: 4px 4px 0 0;
+                    min-height: 4px; transition: height .4s ease; }
+.bar-label        { font-size: 9px; color: #8898aa; text-align: center;
+                    word-break: break-word; white-space: pre-wrap; line-height: 1.3; }
+
+/* ── Ship card grid ── */
+.ship-grid        { display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                    gap: 16px; }
+.ship-card        { background: var(--card); border: 1px solid var(--border);
+                    border-radius: 10px; overflow: hidden;
+                    transition: border-color .2s, transform .2s; }
+.ship-card:hover  { border-color: #00c6c6; transform: translateY(-2px); }
+.ship-card-header { display: flex; justify-content: space-between; align-items: center;
+                    padding: 14px 16px; border-bottom: 1px solid var(--border);
+                    background: rgba(0,198,198,.04); }
+.ship-card-name   { font-weight: 700; font-size: 14px; color: #d0e8ff;
+                    font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; }
+.ship-card-body   { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+.ship-info-row    { display: flex; justify-content: space-between;
+                    font-size: 12px; border-bottom: 1px solid rgba(255,255,255,.04);
+                    padding-bottom: 4px; }
+.ship-info-row span { color: #8898aa; }
+.ship-info-row b  { color: #d0e8ff; }
+.ship-card-footer { display: flex; gap: 8px; padding: 10px 16px;
+                    border-top: 1px solid var(--border); }
+
+/* ── Rekap bulanan ── */
+.rekap-row        { display: flex; align-items: center; gap: 10px;
+                    margin-bottom: 10px; }
+.rekap-label      { width: 140px; font-size: 12px; color: #d0e8ff;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rekap-bar-wrap   { flex: 1; background: rgba(255,255,255,.06);
+                    border-radius: 4px; height: 8px; overflow: hidden; }
+.rekap-bar        { height: 100%; background: #00c6c6; border-radius: 4px;
+                    transition: width .5s ease; }
+.rekap-val        { width: 60px; text-align: right; font-size: 12px;
+                    font-weight: 700; color: #d0e8ff; }
+.rekap-pct        { font-size: 10px; color: #8898aa; font-weight: 400; }
+
+/* ── Foto preview (form input) ── */
+.foto-preview-wrap { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.foto-thumb        { position: relative; width: 90px; height: 90px; border-radius: 8px;
+                     overflow: hidden; border: 1px solid var(--border); }
+.foto-thumb img    { width: 100%; height: 100%; object-fit: cover; }
+.foto-remove       { position: absolute; top: 4px; right: 4px;
+                     background: rgba(0,0,0,.6); border: none; color: #fff;
+                     width: 20px; height: 20px; border-radius: 50%;
+                     font-size: 10px; cursor: pointer; display: flex;
+                     align-items: center; justify-content: center; }
+.foto-count-text   { font-size: 11px; color: #8898aa; margin-top: 4px; }
+
+/* ── Modal open ── */
+.modal-overlay.open { display: flex !important; }
