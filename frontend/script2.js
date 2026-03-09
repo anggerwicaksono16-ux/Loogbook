@@ -54,16 +54,24 @@ onAuthStateChanged(auth, (user) => {
   const isLoginPage = window.location.pathname.includes("login");
   const isDashboard = !isLoginPage;
 
+  // ── Cek sesi Admin lokal (tanpa Firebase) ──
+  const isAdminLocal = sessionStorage.getItem("user_role") === "Admin" &&
+                       sessionStorage.getItem("user_uid")  === "admin-local";
+
   if (user && isLoginPage) {
-    // Sudah login, masih di halaman login → masuk dashboard
+    // Operator sudah login Firebase, masih di halaman login → masuk dashboard
     window.location.replace(REDIRECT_URL);
 
-  } else if (!user && isDashboard) {
-    // Belum login, coba akses dashboard → lempar ke login
+  } else if (isLoginPage && isAdminLocal) {
+    // Admin lokal sudah login, masih di halaman login → masuk dashboard
+    window.location.replace(REDIRECT_URL);
+
+  } else if (!user && isDashboard && !isAdminLocal) {
+    // Bukan Firebase user DAN bukan Admin lokal → lempar ke login
     window.location.replace("login.html");
 
   } else if (user && isDashboard) {
-    // Sudah login, di dashboard → isi info user di header
+    // Operator Firebase login, di dashboard → isi info user di header
     const nameEl  = document.getElementById("userName");
     const emailEl = document.getElementById("userEmail");
     const avEl    = document.getElementById("userAvatar");
@@ -80,7 +88,9 @@ onAuthStateChanged(auth, (user) => {
     sessionStorage.setItem("user_name",  user.displayName  || "");
     sessionStorage.setItem("user_email", user.email        || "");
     sessionStorage.setItem("user_photo", user.photoURL     || "");
+    sessionStorage.setItem("user_role",  "Operator");
   }
+  // Jika isAdminLocal && isDashboard → biarkan, halaman sudah handle via sessionStorage
 });
 
 // ============================================================
