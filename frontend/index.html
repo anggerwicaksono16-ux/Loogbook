@@ -12,6 +12,62 @@
   <link rel="stylesheet" href="style.css">
   <!-- Firebase Extra Styles -->
   <link rel="stylesheet" href="firebase-extra.css">
+
+  <!-- Kondisi Mesin → Status Kapal Dashboard -->
+  <style>
+    .ship-status-list { display:flex; flex-direction:column; gap:6px; }
+
+    .ship-mini-row {
+      display:flex; align-items:flex-start; gap:10px;
+      padding:8px 10px; border-radius:8px;
+      background:rgba(255,255,255,0.03);
+      transition:background .2s;
+    }
+    .ship-mini-row:hover { background:rgba(255,255,255,0.06); }
+
+    /* Highlight kapal bermasalah */
+    .ship-row-rusak {
+      background:rgba(224,82,82,0.08) !important;
+      border:1px solid rgba(224,82,82,0.25);
+    }
+    .ship-row-rusak:hover { background:rgba(224,82,82,0.14) !important; }
+
+    .ship-mini-dot {
+      width:9px; height:9px; border-radius:50%;
+      flex-shrink:0; margin-top:5px;
+    }
+    .dot-green  { background:#4ecb71; box-shadow:0 0 6px #4ecb7188; }
+    .dot-cyan   { background:#00c8e0; box-shadow:0 0 6px #00c8e088; }
+    .dot-red    { background:#e05252; box-shadow:0 0 6px #e0525288; }
+    .dot-gold   { background:#f0c040; box-shadow:0 0 6px #f0c04088; }
+
+    .ship-mini-info { flex:1; min-width:0; }
+    .ship-mini-name { font-size:13px; font-weight:600; color:#cde0f0; }
+
+    /* Keterangan gangguan — di bawah nama kapal */
+    .ship-mini-ket {
+      font-size:10.5px; color:#e07070; margin-top:2px;
+      line-height:1.4; font-family:'JetBrains Mono',monospace;
+    }
+
+    /* Badge status di kanan */
+    .ship-mini-badge {
+      font-size:10px; font-weight:600;
+      padding:2px 8px; border-radius:20px;
+      background:rgba(0,200,224,0.15); color:#00c8e0;
+      white-space:nowrap; flex-shrink:0; align-self:flex-start;
+    }
+    .badge-rusak {
+      background:rgba(224,82,82,0.18) !important;
+      color:#e07070 !important;
+      animation:pulse-rusak 2s infinite;
+    }
+    @keyframes pulse-rusak {
+      0%,100% { opacity:1; }
+      50%      { opacity:0.6; }
+    }
+  </style>
+
 </head>
 <body>
   
@@ -173,23 +229,15 @@
               <label>Nama Kapal *</label>
               <select id="f-kapal" required>
                 <option value="">— Pilih Kapal —</option>
-                <option>KP. MAKASSAR I</option>
-                <option>KP. MAKASSAR II</option>
-                <option>KP. SPICA</option>
-                <option>KP. ANTASENA</option>
-                <option>KP. TRISULA</option>
-                <option>KP. KERAPU</option>
+                <!-- Opsi kapal diisi otomatis oleh populateKapalDropdowns() di data.js -->
               </select>
             </div>
             <div class="form-group">
               <label>Nakhoda *</label>
               <select id="f-nakhoda" required>
                 <option value="">— Pilih Nakhoda —</option>
-                <option>Capt. Ahmad Fauzi, ANT-II</option>
-                <option>Capt. Budi Santoso, ANT-III</option>
-                <option>Capt. Hendra Wijaya, ANT-II</option>
-                <option>Capt. Rizky Pratama, ANT-III</option>
-                <option>Capt. Syarifuddin, ANT-II</option>
+                <!-- Opsi nakhoda diisi otomatis oleh populateNakhodaDropdown() -->
+                <!-- Nakhoda baru otomatis muncul saat disimpan via modal Tambah Personel -->
               </select>
             </div>
             <div class="form-group">
@@ -388,9 +436,7 @@
             <label>Filter Kapal</label>
             <select id="filter-kapal" onchange="filterLogbook()">
               <option value="">Semua Kapal</option>
-              <option>KP. MAKASSAR I</option><option>KP. MAKASSAR II</option>
-              <option>KP. SPICA</option><option>KP. ANTASENA</option>
-              <option>KP. TRISULA</option><option>KP. KERAPU</option>
+              <!-- Opsi kapal diisi otomatis oleh populateKapalDropdowns() di data.js -->
             </select>
           </div>
           <div class="form-group">
@@ -500,15 +546,15 @@
                 <label>Kapal</label>
                 <select id="lap-kapal">
                   <option value="">Semua Kapal</option>
-                  <option>KP. MAKASSAR I</option><option>KP. MAKASSAR II</option>
-                  <option>KP. SPICA</option><option>KP. ANTASENA</option>
-                  <option>KP. TRISULA</option><option>KP. KERAPU</option>
+                  <!-- Opsi kapal diisi otomatis oleh populateKapalDropdowns() di data.js -->
                 </select>
               </div>
               <div class="form-group">
                 <label>Format Output</label>
                 <select id="lap-format">
-                  <option>PDF</option><option>Excel (CSV)</option><option>Print Preview</option>
+                  <option>PDF Detail + Foto</option>
+                  <option>PDF Ringkas</option>
+                  <option>Excel (CSV)</option>
                 </select>
               </div>
             </div>
@@ -543,7 +589,7 @@
       <div class="form-group"><label>NIP / No. Pelaut</label><input type="text" id="m-nip" placeholder="NIP atau nomor pelaut"></div>
       <div class="form-group">
         <label>Jabatan</label>
-        <select id="m-jabatan">
+        <select id="m-jabatan" onchange="onJabatanChange(this)">
           <option>Nakhoda</option><option>Mualim I</option><option>Mualim II</option>
           <option>KKM (Chief Engineer)</option><option>Masinis II</option>
           <option>Juru Mudi</option><option>Masinis III</option><option>Kelasi</option>
@@ -552,9 +598,8 @@
       <div class="form-group">
         <label>Kapal Ditugaskan</label>
         <select id="m-kapal">
-          <option>KP. MAKASSAR I</option><option>KP. MAKASSAR II</option>
-          <option>KP. SPICA</option><option>KP. ANTASENA</option>
-          <option>KP. TRISULA</option><option>KP. KERAPU</option>
+          <option value="">— Pilih Kapal —</option>
+          <!-- Opsi kapal diisi otomatis oleh populateKapalDropdowns() di data.js -->
         </select>
       </div>
       <div class="form-group"><label>Sertifikat</label><input type="text" id="m-sertifikat" placeholder="Contoh: ANT-II, ATT-III"></div>
@@ -786,5 +831,6 @@
   }
 </script>
 
+<!-- Logika awak kapal & sinkronisasi nakhoda dikelola sepenuhnya oleh data.js -->
 </body>
 </html>
