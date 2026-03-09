@@ -620,12 +620,17 @@ window.saveKapal = async function() {
     status     : document.getElementById("mk-status")?.value,
   };
   try {
+    showToast("⏳ Menyimpan...");
     await fbSaveKapal(data);
-    showToast("✓ Data kapal disimpan!");
+    showToast("✓ Data kapal berhasil disimpan!");
     _kapalCache = [];
     closeModalKapal();
-    renderKapal();
-  } catch(err) { showToast("✗ " + err.message, "error"); }
+    await renderKapal();
+    if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
+  } catch(err) {
+    console.error("[saveKapal]", err);
+    showToast("✗ Gagal: " + (err.code==="permission-denied" ? "Akses ditolak Firebase" : err.message), "error");
+  }
 };
 
 window.hapusKapal = async function(docId, nama) {
@@ -634,7 +639,8 @@ window.hapusKapal = async function(docId, nama) {
     await fbDeleteKapal(nama);
     showToast("✓ Kapal dihapus");
     _kapalCache = [];
-    renderKapal();
+    await renderKapal();
+    if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -693,13 +699,10 @@ window.saveAwak = async function() {
       const el = document.getElementById(id); if (el) el.value="";
     });
     await renderAwak();
-    // Refresh dropdown nakhoda jika jabatan Nakhoda
-    if (typeof window.populateNakhodaDropdown === "function") {
-      window.populateNakhodaDropdown();
-    }
+    if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
   } catch(err) {
     console.error("[saveAwak]", err);
-    showToast("✗ Gagal: " + (err.code === "permission-denied" ? "Akses ditolak Firebase — cek Rules" : err.message), "error");
+    showToast("✗ Gagal: " + (err.code==="permission-denied" ? "Akses ditolak Firebase" : err.message), "error");
   }
 };
 
@@ -709,9 +712,7 @@ window.hapusAwak = async function(docId, nama) {
     await fbDeleteAwak(docId);
     showToast("✓ Personel dihapus");
     await renderAwak();
-    if (typeof window.populateNakhodaDropdown === "function") {
-      window.populateNakhodaDropdown();
-    }
+    if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -795,7 +796,7 @@ function printReport(data, jenis, periode, kapal) {
 // ══════════════════════════════════════════════
 //  EXPORT MENU
 // ══════════════════════════════════════════════
-// Expose Firebase functions ke window agar bisa dipakai data.js
+// Expose ke window agar data.js bisa akses
 window.getAllKapal = getAllKapal;
 window.getAllAwak  = getAllAwak;
 
@@ -909,8 +910,8 @@ refreshDashboard();
 
 console.log("[E-logbook] ✅ Semua modul siap, Firebase terhubung.");
 
-// Isi dropdown kapal & nakhoda dari Firebase saat pertama load
+// Isi dropdown dari Firebase saat halaman pertama load
 setTimeout(() => {
   if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
   if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
-}, 500);
+}, 600);
