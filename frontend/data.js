@@ -4,7 +4,15 @@
 
 /* ── State (in-memory, disinkron dari Firestore) ── */
 let logbookData = [];
-let awakData    = [];
+
+/* ── Seed: Data Awak Kapal ── */
+let awakData = [
+  { nama: 'Capt. Ahmad Fauzi, ANT-II',    jabatan: 'Nakhoda', nip: '19780312 200312 1 002', kapal: 'KP. MAKASSAR I',  sertifikat: 'ANT-II',  berlaku: '2026-08-01', status: 'Aktif' },
+  { nama: 'Capt. Budi Santoso, ANT-III',  jabatan: 'Nakhoda', nip: '19821105 200501 1 003', kapal: 'KP. MAKASSAR II', sertifikat: 'ANT-III', berlaku: '2025-12-31', status: 'Aktif' },
+  { nama: 'Capt. Hendra Wijaya, ANT-II',  jabatan: 'Nakhoda', nip: '19750820 199903 1 001', kapal: 'KP. SPICA',       sertifikat: 'ANT-II',  berlaku: '2027-03-15', status: 'Aktif' },
+  { nama: 'Capt. Rizky Pratama, ANT-III', jabatan: 'Nakhoda', nip: '19900614 201503 1 004', kapal: 'KP. ANTASENA',    sertifikat: 'ANT-III', berlaku: '2026-06-30', status: 'Aktif' },
+  { nama: 'Capt. Syarifuddin, ANT-II',    jabatan: 'Nakhoda', nip: '19830227 200604 1 005', kapal: 'KP. TRISULA',     sertifikat: 'ANT-II',  berlaku: '2026-11-20', status: 'Aktif' },
+];
 
 /* ── Seed: Data Kapal (tetap di lokal, bisa dimigrasi) ── */
 const kapalData = [
@@ -63,4 +71,438 @@ function showLoading(pesan = 'Memuat data dari Firebase…') {
 function hideLoading() {
   const el = document.getElementById('fb-loading');
   if (el) el.style.display = 'none';
+}
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: getAllLogbook()
+   Mengembalikan seluruh data logbook dari memory (logbookData)
+   yang sudah disinkron dari Firestore oleh app.js / main.js
+   ══════════════════════════════════════════════════════════ */
+function getAllLogbook() {
+  return Promise.resolve([...logbookData]);
+}
+
+/* ══════════════════════════════════════════════════════════
+   KONDISI YANG DIANGGAP "DALAM PERBAIKAN"
+   Berdasarkan field kondisi mesin & status kapal di form logbook
+   ══════════════════════════════════════════════════════════ */
+// Semua nilai kondisi yang dianggap "ada gangguan / butuh perbaikan"
+const _RUSAK_MESIN      = ["Ada Gangguan Minor", "Perlu Perbaikan", "Tidak Beroperasi"];
+const _RUSAK_NAVIGASI   = ["Ada Gangguan Minor", "Perlu Perbaikan"];
+const _RUSAK_KOMUNIKASI = ["Ada Gangguan",       "Tidak Berfungsi"];
+const _STATUS_RUSAK     = ["Dalam Perawatan",    "Docking"];
+
+/**
+ * Cek apakah satu entri logbook menandakan kapal sedang bermasalah/perbaikan.
+ */
+function _isEntryPerbaikan(entry) {
+  const mesin      = entry.mesin       || entry.kondisiMesin       || "";
+  const navigasi   = entry.navigasi    || entry.kondisiNav         || "";
+  const komunikasi = entry.komunikasi  || entry.kondisiKom         || "";
+  const status     = entry.statusKapal || entry.statusKapalSetelah || "";
+
+  return (
+    _RUSAK_MESIN.includes(mesin)           ||
+    _RUSAK_NAVIGASI.includes(navigasi)     ||
+    _RUSAK_KOMUNIKASI.includes(komunikasi) ||
+    _STATUS_RUSAK.includes(status)
+  );
+}
+
+/**
+ * Dari semua logbook, ambil entri TERBARU per kapal,
+ * lalu kembalikan nama-nama kapal yang sedang dalam perbaikan.
+ * Fallback ke kapalData jika belum ada logbook.
+ */
+function getKapalSedangPerbaikan() {
+  if (!logbookData.length) {
+    // Fallback: cek status dari data kapal statis
+    return kapalData
+      .filter(k => k.status === 'maintenance' || k.status === 'docking')
+      .map(k => k.nama);
+  }
+
+  // Ambil entri terbaru per kapal
+  const latest = {};
+  logbookData.forEach(entry => {
+    const nama = entry.kapal || entry.namaKapal || "";
+    if (!nama) return;
+    const tgl = new Date(entry.tanggal || 0).getTime();
+    if (!latest[nama] || tgl > latest[nama].tgl) {
+      latest[nama] = { entry, tgl };
+    }
+  });
+
+  // Filter kapal yang kondisinya rusak / perbaikan
+  return Object.entries(latest)
+    .filter(([, { entry }]) => _isEntryPerbaikan(entry))
+    .map(([nama]) => nama);
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: populateKapalDropdowns()
+   Mengisi semua <select> dropdown nama kapal di seluruh
+   halaman berdasarkan array kapalData (termasuk kapal baru
+   yang sudah ditambahkan via modal).
+   ══════════════════════════════════════════════════════════ */
+function populateKapalDropdowns() {
+  // ID semua select yang perlu diisi nama kapal
+  const dropdownIds = [
+    'f-kapal',        // Form Input Aktivitas
+    'filter-kapal',   // Filter Riwayat Logbook
+    'lap-kapal',      // Laporan
+    'm-kapal',        // Modal Tambah Awak
+  ];
+
+  dropdownIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    // Simpan nilai yang sedang dipilih agar tidak reset
+    const selectedVal = el.value;
+
+    // Hapus semua opsi kecuali opsi pertama (placeholder / "Semua Kapal")
+    while (el.options.length > 1) el.remove(1);
+
+    // Isi ulang dari kapalData
+    kapalData.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.nama;
+      opt.textContent = k.nama;
+      el.appendChild(opt);
+    });
+
+    // Kembalikan pilihan sebelumnya jika masih ada
+    if (selectedVal) el.value = selectedVal;
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: saveKapal()
+   Menyimpan data kapal baru dari modal ke kapalData,
+   lalu refresh semua dropdown dan kartu kapal.
+   ══════════════════════════════════════════════════════════ */
+function saveKapal() {
+  const nama = (document.getElementById('mk-nama')?.value || '').trim();
+  if (!nama) {
+    alert('Nama kapal tidak boleh kosong.');
+    return;
+  }
+
+  // Cek duplikasi nama
+  const sudahAda = kapalData.some(k => k.nama.toLowerCase() === nama.toLowerCase());
+  if (sudahAda) {
+    alert(`Kapal "${nama}" sudah ada dalam daftar.`);
+    return;
+  }
+
+  // Buat objek kapal baru
+  const kapalBaru = {
+    nama,
+    callsign    : document.getElementById('mk-callsign')?.value   || '',
+    tipe        : `Kapal ${document.getElementById('mk-kelas')?.value || 'Patroli'}`,
+    tahun       : parseInt(document.getElementById('mk-tahun')?.value) || new Date().getFullYear(),
+    imo         : document.getElementById('mk-imo')?.value         || '',
+    panjang     : document.getElementById('mk-ukuran')?.value      || '',
+    gt          : document.getElementById('mk-gt')?.value          || '',
+    konstruksi  : document.getElementById('mk-konstruksi')?.value  || '',
+    kecepatan   : document.getElementById('mk-me-kecepatan')?.value || '',
+    mesin       : `${document.getElementById('mk-me-merk')?.value || ''} ${document.getElementById('mk-me-daya')?.value || ''}`.trim(),
+    bbm         : document.getElementById('mk-bbm')?.value         || '',
+    abkMaks     : parseInt(document.getElementById('mk-crew')?.value) || 0,
+    status      : document.getElementById('mk-status')?.value      || 'standby',
+  };
+
+  // Tambahkan ke array lokal
+  kapalData.push(kapalBaru);
+
+  // Refresh semua dropdown kapal di halaman
+  populateKapalDropdowns();
+
+  // Jika ada fungsi renderKapal (dari app.js), panggil untuk update kartu
+  if (typeof window.renderKapal === 'function') window.renderKapal();
+  if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
+
+  // Tutup modal & reset field
+  closeModalKapal();
+
+  // Toast notifikasi
+  if (typeof showToast === 'function') showToast(`✓ Kapal "${nama}" berhasil ditambahkan`);
+}
+
+/* ── Helper: tutup modal kapal ── */
+function closeModalKapal() {
+  const modal = document.getElementById('modal-kapal');
+  if (modal) modal.classList.remove('open');
+
+  // Reset semua field modal
+  ['mk-nama','mk-callsign','mk-imo','mk-ukuran','mk-konstruksi','mk-gt','mk-tahun',
+   'mk-bbm','mk-air','mk-crew','mk-tanki','mk-me-merk','mk-me-daya','mk-me-hpbbm',
+   'mk-me-kecepatan','mk-ae-merk','mk-ae-daya','mk-ae-hpbbm','mk-ae-kecepatan']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+}
+
+/* ── Helper: buka modal kapal ── */
+function openModalKapal(namaKapal) {
+  const modal = document.getElementById('modal-kapal');
+  if (!modal) return;
+
+  if (namaKapal) {
+    // Mode edit — isi field dari data yang ada
+    const k = kapalData.find(x => x.nama === namaKapal);
+    if (k) {
+      document.getElementById('mk-nama').value  = k.nama   || '';
+      document.getElementById('mk-imo').value   = k.imo    || '';
+      document.getElementById('mk-tahun').value = k.tahun  || '';
+      document.getElementById('mk-gt').value    = k.gt     || '';
+      document.getElementById('mk-bbm').value   = k.bbm    || '';
+      document.getElementById('mk-crew').value  = k.abkMaks|| '';
+    }
+    document.getElementById('modal-kapal-title').textContent = `Edit Kapal: ${namaKapal}`;
+  } else {
+    document.getElementById('modal-kapal-title').textContent = 'Tambah Kapal Baru';
+  }
+
+  modal.classList.add('open');
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: populateNakhodaDropdown()
+   Mengisi select#f-nakhoda dari awakData (jabatan = Nakhoda).
+   Pola identik dengan populateKapalDropdowns().
+   ══════════════════════════════════════════════════════════ */
+function populateNakhodaDropdown() {
+  const el = document.getElementById('f-nakhoda');
+  if (!el) return;
+  const current = el.value;
+
+  while (el.options.length > 1) el.remove(1);
+
+  awakData
+    .filter(a => a.jabatan === 'Nakhoda')
+    .forEach(a => {
+      const opt = document.createElement('option');
+      opt.value       = a.nama;
+      opt.textContent = a.nama;
+      el.appendChild(opt);
+    });
+
+  if (current) el.value = current;
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: onJabatanChange()
+   Hint visual saat jabatan Nakhoda dipilih di modal awak.
+   ══════════════════════════════════════════════════════════ */
+function onJabatanChange(sel) {
+  const isNakhoda = sel.value === 'Nakhoda';
+  const namaEl    = document.getElementById('m-nama');
+  const sertEl    = document.getElementById('m-sertifikat');
+
+  if (isNakhoda) {
+    if (namaEl) namaEl.placeholder = 'Capt. Nama Lengkap, ANT-II';
+    if (sertEl) sertEl.placeholder = 'ANT-I / ANT-II / ANT-III';
+
+    let banner = document.getElementById('nakhoda-info-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'nakhoda-info-banner';
+      banner.style.cssText = [
+        'grid-column:1/-1',
+        'background:rgba(0,200,224,0.08)',
+        'border:1px solid rgba(0,200,224,0.3)',
+        'border-radius:8px',
+        'padding:8px 14px',
+        'font-size:12px',
+        'color:#00c8e0',
+        'margin-top:4px',
+      ].join(';');
+      banner.innerHTML = '⚓ Nama ini akan otomatis muncul di dropdown <b>Nakhoda</b> pada Form Input Aktivitas.';
+      sel.closest('.form-grid-2').appendChild(banner);
+    }
+    banner.style.display = 'block';
+  } else {
+    const banner = document.getElementById('nakhoda-info-banner');
+    if (banner) banner.style.display = 'none';
+    if (namaEl) namaEl.placeholder = 'Nama personel';
+    if (sertEl) sertEl.placeholder = 'Contoh: ANT-II, ATT-III';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: saveAwak()
+   Simpan personel baru ke awakData. Jika jabatan = Nakhoda,
+   langsung refresh dropdown f-nakhoda — persis seperti
+   saveKapal() merefresh dropdown kapal.
+   ══════════════════════════════════════════════════════════ */
+function saveAwak() {
+  const nama    = (document.getElementById('m-nama')?.value       || '').trim();
+  const nip     = (document.getElementById('m-nip')?.value        || '').trim();
+  const jabatan =  document.getElementById('m-jabatan')?.value    || '';
+  const kapal   =  document.getElementById('m-kapal')?.value      || '';
+  const sertif  = (document.getElementById('m-sertifikat')?.value || '').trim();
+  const berlaku =  document.getElementById('m-berlaku')?.value    || '';
+
+  if (!nama) { alert('Nama lengkap tidak boleh kosong.'); return; }
+
+  const sudahAda = awakData.some(a => a.nama.toLowerCase() === nama.toLowerCase());
+  if (sudahAda) { alert(`Personel "${nama}" sudah terdaftar.`); return; }
+
+  // Simpan ke array utama (sumber kebenaran)
+  awakData.push({ nama, nip, jabatan, kapal, sertifikat: sertif, berlaku, status: 'Aktif' });
+
+  // Jika Nakhoda → refresh dropdown input aktivitas
+  if (jabatan === 'Nakhoda') populateNakhodaDropdown();
+
+  // Render ulang tabel awak jika tersedia
+  if (typeof window.renderAwak === 'function') window.renderAwak();
+
+  // Toast
+  if (typeof showToast === 'function')
+    showToast(jabatan === 'Nakhoda'
+      ? `✓ Nakhoda "${nama}" ditambahkan ke dropdown`
+      : `✓ Personel "${nama}" berhasil disimpan`);
+
+  // Tutup modal & reset field
+  document.getElementById('modal-awak')?.classList.remove('open');
+  ['m-nama','m-nip','m-sertifikat','m-berlaku'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const banner = document.getElementById('nakhoda-info-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: _getDetailGangguan(entry)
+   Kembalikan string detail masalah dari satu entri logbook,
+   atau null jika semua kondisi normal.
+   ══════════════════════════════════════════════════════════ */
+function _getDetailGangguan(entry) {
+  const mesin      = entry.mesin       || entry.kondisiMesin       || "";
+  const navigasi   = entry.navigasi    || entry.kondisiNav         || "";
+  const komunikasi = entry.komunikasi  || entry.kondisiKom         || "";
+  const status     = entry.statusKapal || entry.statusKapalSetelah || "";
+
+  const masalah = [];
+  if (_RUSAK_MESIN.includes(mesin))           masalah.push("Mesin: "      + mesin);
+  if (_RUSAK_NAVIGASI.includes(navigasi))     masalah.push("Navigasi: "   + navigasi);
+  if (_RUSAK_KOMUNIKASI.includes(komunikasi)) masalah.push("Komunikasi: " + komunikasi);
+  if (_STATUS_RUSAK.includes(status))         masalah.push("Status: "     + status);
+
+  return masalah.length ? masalah.join(" · ") : null;
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: _statusDariEntry(entry, statusAsli)
+   Tentukan status kapal ('patrol'|'standby'|'maintenance'|'docking')
+   berdasarkan kondisi yang diinputkan di form logbook.
+   ══════════════════════════════════════════════════════════ */
+function _statusDariEntry(entry, statusAsli) {
+  const mesin      = entry.mesin       || entry.kondisiMesin       || "";
+  const navigasi   = entry.navigasi    || entry.kondisiNav         || "";
+  const komunikasi = entry.komunikasi  || entry.kondisiKom         || "";
+  const statusPost = entry.statusKapal || entry.statusKapalSetelah || "";
+
+  // Status setelah aktivitas yang eksplisit → prioritas utama
+  if (statusPost === "Docking")          return "docking";
+  if (statusPost === "Dalam Perawatan")  return "maintenance";
+
+  // Ada kondisi gangguan di mesin / navigasi / komunikasi → maintenance
+  const adaGangguan =
+    _RUSAK_MESIN.includes(mesin)           ||
+    _RUSAK_NAVIGASI.includes(navigasi)     ||
+    _RUSAK_KOMUNIKASI.includes(komunikasi);
+
+  if (adaGangguan)                       return "maintenance";
+  if (statusPost === "Standby di Dermaga") return "standby";
+  if (statusPost === "Siap Bertugas")      return "patrol";
+
+  // Fallback: pertahankan status asal dari kapalData
+  return statusAsli || "standby";
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: getStatusKapalDashboard()
+   Kembalikan array semua kapal dengan status DINAMIS
+   yang sudah di-override dari entri logbook terbaru.
+   Digunakan oleh dashboard.js untuk renderShipStatusMini().
+   ══════════════════════════════════════════════════════════ */
+function getStatusKapalDashboard() {
+  // Bangun map: nama kapal → entri logbook paling baru
+  const latest = {};
+  logbookData.forEach(entry => {
+    const nama = entry.kapal || entry.namaKapal || "";
+    if (!nama) return;
+    const tgl = new Date(entry.tanggal || 0).getTime();
+    if (!latest[nama] || tgl > latest[nama].tgl) {
+      latest[nama] = { entry, tgl };
+    }
+  });
+
+  return kapalData.map(k => {
+    const rec = latest[k.nama];
+    if (rec) {
+      const statusDinamis = _statusDariEntry(rec.entry, k.status);
+      const keterangan    = _getDetailGangguan(rec.entry);
+      return {
+        nama          : k.nama,
+        tipe          : k.tipe,
+        status        : statusDinamis,
+        keterangan    : keterangan || "",
+        tanggalUpdate : rec.entry.tanggal || "",
+      };
+    }
+    // Kapal belum punya logbook → pakai status statis
+    return {
+      nama          : k.nama,
+      tipe          : k.tipe,
+      status        : k.status,
+      keterangan    : "",
+      tanggalUpdate : "",
+    };
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: pushLogbookEntry(entry)
+   Dipanggil dari app.js / main.js setelah simpan logbook
+   agar logbookData lokal terupdate, lalu trigger re-render
+   status kapal di dashboard secara instan.
+   ══════════════════════════════════════════════════════════ */
+function pushLogbookEntry(entry) {
+  if (!entry) return;
+  logbookData.push(entry);
+
+  // Trigger refresh komponen dashboard yang bergantung pada kondisi kapal
+  if (typeof window._refreshStatusKapal === 'function') {
+    window._refreshStatusKapal();
+  }
+}
+
+// Expose ke window agar bisa diakses dari dashboard.js
+if (typeof window !== 'undefined') {
+  window._getAllLogbook            = getAllLogbook;
+  window._getKapalPerbaikan       = getKapalSedangPerbaikan;
+  window.getStatusKapalDashboard  = getStatusKapalDashboard;
+  window.pushLogbookEntry         = pushLogbookEntry;
+  window.populateKapalDropdowns   = populateKapalDropdowns;
+  window.populateNakhodaDropdown  = populateNakhodaDropdown;
+  window.onJabatanChange          = onJabatanChange;
+  window.saveKapal                = saveKapal;
+  window.saveAwak                 = saveAwak;
+  window.openModalKapal           = openModalKapal;
+  window.closeModalKapal          = closeModalKapal;
+  window.kapalData                = kapalData;
+  window.awakData                 = awakData;
+  window.logbookData              = logbookData;
+
+  // Isi semua dropdown saat DOM siap
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      populateKapalDropdowns();
+      populateNakhodaDropdown();
+    });
+  } else {
+    populateKapalDropdowns();
+    populateNakhodaDropdown();
+  }
 }
