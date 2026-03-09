@@ -101,28 +101,48 @@ function renderTimeline(logList) {
    STATUS KAPAL MINI (sidebar dashboard)
 ────────────────────────────────────────────── */
 const STATUS_STYLE = {
-  patrol      : { dot: "dot-green",  label: "Patroli"     },
-  standby     : { dot: "dot-cyan",   label: "Standby"     },
-  maintenance : { dot: "dot-red",    label: "Maintenance" },
-  docking     : { dot: "dot-gold",   label: "Docking"     },
+  patrol      : { dot: "dot-green",  label: "Patroli"    },
+  standby     : { dot: "dot-cyan",   label: "Standby"    },
+  maintenance : { dot: "dot-red",    label: "Perbaikan"  },
+  docking     : { dot: "dot-gold",   label: "Docking"    },
 };
 
-function renderShipStatusMini(kapalList) {
+/**
+ * Render daftar status kapal di panel dashboard.
+ * Prioritas: pakai getStatusKapalDashboard() dari data.js
+ * (status dinamis dari logbook), fallback ke kapalList Firebase.
+ */
+function renderShipStatusMini(kapalListFallback) {
   const wrap = document.getElementById("ship-status-mini");
   if (!wrap) return;
 
-  if (!kapalList.length) {
+  // Ambil status dinamis dari data.js jika tersedia
+  const kapalList = (typeof window.getStatusKapalDashboard === "function")
+    ? window.getStatusKapalDashboard()
+    : (kapalListFallback || []);
+
+  if (!kapalList || !kapalList.length) {
     wrap.innerHTML = `<div class="empty-state sm">Belum ada data kapal.</div>`;
     return;
   }
 
   wrap.innerHTML = kapalList.map(k => {
-    const st = STATUS_STYLE[k.status] || { dot: "dot-cyan", label: k.status };
+    const st           = STATUS_STYLE[k.status] || { dot: "dot-cyan", label: k.status || "—" };
+    const isPerbaikan  = k.status === "maintenance" || k.status === "docking";
+
+    // Baris keterangan gangguan — hanya tampil jika ada masalah
+    const ketHtml = (isPerbaikan && k.keterangan)
+      ? `<div class="ship-mini-ket">⚠ ${k.keterangan}</div>`
+      : "";
+
     return `
-    <div class="ship-mini-row">
+    <div class="ship-mini-row${isPerbaikan ? " ship-row-rusak" : ""}">
       <div class="ship-mini-dot ${st.dot}"></div>
-      <div class="ship-mini-name">${k.nama || "—"}</div>
-      <div class="ship-mini-status">${st.label}</div>
+      <div class="ship-mini-info">
+        <div class="ship-mini-name">${k.nama || "—"}</div>
+        ${ketHtml}
+      </div>
+      <div class="ship-mini-badge ${isPerbaikan ? "badge-rusak" : ""}">${st.label}</div>
     </div>`;
   }).join("");
 }
@@ -199,3 +219,150 @@ function renderRecentTable(logList) {
 //     renderRecentTable(items);
 //   }, 8);
 // });
+/* ══════════════════════════════════════════════════════════
+   PATCH: refreshDashboard — hitung kapal perbaikan otomatis
+   dari kondisi mesin & status kapal di logbook terbaru
+   ══════════════════════════════════════════════════════════ */
+(function () {
+  const _originalRefresh = refreshDashboard;
+
+  window.refreshDashboard = async function () {
+    const btn = document.querySelector("[onclick='refreshDashboard()']");
+    if (btn) btn.textContent = "⏳ Memuat…";
+
+    try {
+      const [stats, recent] = await Promise.all([
+        window._fb.getStatsDashboard(),
+        window._fb.getRecentLogbook(8)
+      ]);
+
+      // — Hitung kapal perbaikan dari kondisi mesin / status kapal —
+      const kapalRusak = typeof window._getKapalPerbaikan === 'function'
+        ? window._getKapalPerbaikan()
+        : [];
+
+      // Jika ada data logbook → pakai hasil hitung sendiri
+      // Jika belum ada logbook sama sekali → fallback ke Firebase stats
+      const jumlahPerbaikan = kapalRusak.length > 0 || window._getAllLogbook
+        ? kapalRusak.length
+        : (stats.kapalPerbaikan || 0);
+
+      // — Stat cards —
+      animateCount("stat-aktif",       stats.kapalAktifHariIni);
+      animateCount("stat-total",       stats.totalAktivitasBulanIni);
+      animateCount("stat-pelanggaran", stats.pelanggaranBulanIni);
+      animateCount("stat-perbaikan",   jumlahPerbaikan);
+
+      // — Update subtitle dengan nama kapal yang rusak —
+      _updateSubtitlePerbaikan(kapalRusak);
+
+      // — Komponen dashboard lain —
+      renderTimeline(recent);
+      renderShipStatusMini(stats.semuaKapal); // getStatusKapalDashboard diprioritaskan di dalam fungsi
+      renderBarChart(stats.rekapJenis);
+      renderRecentTable(recent);
+
+    } catch (err) {
+      console.error("[Dashboard]", err);
+    } finally {
+      if (btn) btn.textContent = "↻ Refresh";
+    }
+  };
+
+  /**
+   * Update subtitle card "Kapal Dalam Perbaikan"
+   * dengan nama kapal yang sedang rusak/maintenance.
+   */
+  function _updateSubtitlePerbaikan(kapalRusak) {
+    const statEl = document.getElementById("stat-perbaikan");
+    if (!statEl) return;
+    const subEl = statEl.closest(".stat-card")?.querySelector(".stat-sub");
+    if (!subEl) return;
+
+    if (!kapalRusak.length) {
+      subEl.textContent = "sedang maintenance";
+      subEl.title = "";
+    } else {
+      const tampil = kapalRusak.slice(0, 2).join(", ");
+      const sisa   = kapalRusak.length - 2;
+      subEl.textContent = sisa > 0 ? `${tampil} +${sisa} lainnya` : tampil;
+      subEl.title       = kapalRusak.join(", ");
+    }
+  }
+})();
+
+/* ══════════════════════════════════════════════════════════
+   _refreshStatusKapal()
+   Refresh hanya bagian status kapal & counter perbaikan
+   di dashboard — tanpa re-fetch seluruh data Firebase.
+   Dipanggil oleh data.js::pushLogbookEntry() setiap kali
+   logbook baru disimpan.
+   ══════════════════════════════════════════════════════════ */
+function _refreshStatusKapal() {
+  // Re-render panel status kapal dengan data terbaru
+  renderShipStatusMini([]);
+
+  // Hitung ulang jumlah kapal dalam perbaikan
+  const kapalRusak = (typeof window._getKapalPerbaikan === "function")
+    ? window._getKapalPerbaikan()
+    : [];
+
+  // Update angka stat card
+  const statEl = document.getElementById("stat-perbaikan");
+  if (statEl) statEl.textContent = kapalRusak.length;
+
+  // Update subtitle stat card
+  const subEl = statEl?.closest(".stat-card")?.querySelector(".stat-sub");
+  if (subEl) {
+    if (!kapalRusak.length) {
+      subEl.textContent = "sedang maintenance";
+      subEl.title       = "";
+    } else {
+      const tampil      = kapalRusak.slice(0, 2).join(", ");
+      const sisa        = kapalRusak.length - 2;
+      subEl.textContent = sisa > 0 ? `${tampil} +${sisa} lainnya` : tampil;
+      subEl.title       = kapalRusak.join(", ");
+    }
+  }
+}
+window._refreshStatusKapal = _refreshStatusKapal;
+
+/* ══════════════════════════════════════════════════════════
+   AUTO-WRAP saveLogbook
+   Intersept fungsi saveLogbook (dari app.js) setelah DOM siap
+   agar setiap simpan logbook langsung memperbarui status kapal
+   di dashboard tanpa perlu klik Refresh manual.
+   ══════════════════════════════════════════════════════════ */
+(function _wrapSaveLogbook() {
+  function _doWrap() {
+    if (typeof window.saveLogbook !== "function") {
+      setTimeout(_doWrap, 200);   // tunggu app.js selesai load
+      return;
+    }
+
+    const _orig = window.saveLogbook;
+    window.saveLogbook = async function (...args) {
+      const result = await _orig.apply(this, args);
+
+      // Setelah simpan berhasil → ambil entry terbaru dari logbookData
+      // dan push ke data.js (yang akan trigger _refreshStatusKapal)
+      try {
+        const allData = window.logbookData || [];
+        if (allData.length) {
+          // Entry terbaru sudah ada di logbookData, cukup trigger refresh
+          _refreshStatusKapal();
+        }
+      } catch (e) {
+        console.warn("[Dashboard] Auto-refresh status gagal:", e);
+      }
+
+      return result;
+    };
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", _doWrap);
+  } else {
+    _doWrap();
+  }
+})();
