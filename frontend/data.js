@@ -275,18 +275,31 @@ function populateNakhodaDropdown() {
   if (!el) return;
   const current = el.value;
 
-  while (el.options.length > 1) el.remove(1);
+  function _isi(list) {
+    while (el.options.length > 1) el.remove(1);
+    list
+      .filter(a => a.jabatan === 'Nakhoda')
+      .forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.nama || '';
+        opt.textContent = a.nama || '';
+        el.appendChild(opt);
+      });
+    if (current) el.value = current;
+  }
 
-  awakData
-    .filter(a => a.jabatan === 'Nakhoda')
-    .forEach(a => {
-      const opt = document.createElement('option');
-      opt.value       = a.nama;
-      opt.textContent = a.nama;
-      el.appendChild(opt);
-    });
-
-  if (current) el.value = current;
+  // Ambil dari Firebase jika tersedia, fallback ke awakData lokal
+  if (typeof window.getAllAwak === 'function') {
+    window.getAllAwak()
+      .then(fbList => {
+        const namaFb = fbList.map(a => (a.nama||'').toLowerCase());
+        const lokal  = awakData.filter(a => !namaFb.includes(a.nama.toLowerCase()));
+        _isi([...fbList, ...lokal]);
+      })
+      .catch(() => _isi(awakData));
+  } else {
+    _isi(awakData);
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -326,49 +339,6 @@ function onJabatanChange(sel) {
     if (namaEl) namaEl.placeholder = 'Nama personel';
     if (sertEl) sertEl.placeholder = 'Contoh: ANT-II, ATT-III';
   }
-}
-
-/* ══════════════════════════════════════════════════════════
-   FUNGSI: saveAwak()
-   Simpan personel baru ke awakData. Jika jabatan = Nakhoda,
-   langsung refresh dropdown f-nakhoda — persis seperti
-   saveKapal() merefresh dropdown kapal.
-   ══════════════════════════════════════════════════════════ */
-function saveAwak() {
-  const nama    = (document.getElementById('m-nama')?.value       || '').trim();
-  const nip     = (document.getElementById('m-nip')?.value        || '').trim();
-  const jabatan =  document.getElementById('m-jabatan')?.value    || '';
-  const kapal   =  document.getElementById('m-kapal')?.value      || '';
-  const sertif  = (document.getElementById('m-sertifikat')?.value || '').trim();
-  const berlaku =  document.getElementById('m-berlaku')?.value    || '';
-
-  if (!nama) { alert('Nama lengkap tidak boleh kosong.'); return; }
-
-  const sudahAda = awakData.some(a => a.nama.toLowerCase() === nama.toLowerCase());
-  if (sudahAda) { alert(`Personel "${nama}" sudah terdaftar.`); return; }
-
-  // Simpan ke array utama (sumber kebenaran)
-  awakData.push({ nama, nip, jabatan, kapal, sertifikat: sertif, berlaku, status: 'Aktif' });
-
-  // Jika Nakhoda → refresh dropdown input aktivitas
-  if (jabatan === 'Nakhoda') populateNakhodaDropdown();
-
-  // Render ulang tabel awak jika tersedia
-  if (typeof window.renderAwak === 'function') window.renderAwak();
-
-  // Toast
-  if (typeof showToast === 'function')
-    showToast(jabatan === 'Nakhoda'
-      ? `✓ Nakhoda "${nama}" ditambahkan ke dropdown`
-      : `✓ Personel "${nama}" berhasil disimpan`);
-
-  // Tutup modal & reset field
-  document.getElementById('modal-awak')?.classList.remove('open');
-  ['m-nama','m-nip','m-sertifikat','m-berlaku'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = '';
-  });
-  const banner = document.getElementById('nakhoda-info-banner');
-  if (banner) banner.style.display = 'none';
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -488,7 +458,6 @@ if (typeof window !== 'undefined') {
   window.populateNakhodaDropdown  = populateNakhodaDropdown;
   window.onJabatanChange          = onJabatanChange;
   window.saveKapal                = saveKapal;
-  window.saveAwak                 = saveAwak;
   window.openModalKapal           = openModalKapal;
   window.closeModalKapal          = closeModalKapal;
   window.kapalData                = kapalData;
