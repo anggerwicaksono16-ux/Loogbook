@@ -176,13 +176,13 @@
     // ── Login Admin (lokal, tanpa Firebase) ──
     if (role === 'Admin') {
       if (emailVal === ADMIN_USER && pwd === ADMIN_PASS) {
-        // Simpan info admin ke sessionStorage
+        // Simpan info admin ke sessionStorage SEBELUM redirect
         sessionStorage.setItem('user_uid',   'admin-local');
         sessionStorage.setItem('user_name',  'Administrator');
         sessionStorage.setItem('user_email', 'admin@ksop-makassar.go.id');
         sessionStorage.setItem('user_photo', '');
         sessionStorage.setItem('user_role',  'Admin');
-        simulateLogin(emailVal, pwd);
+        simulateLogin();
       } else {
         document.getElementById('pbar').style.width = '0%';
         document.getElementById('btnTxt').textContent = 'Masuk ke Dashboard';
@@ -195,29 +195,37 @@
 
     // ── Login Operator (via Firebase) ──
     sessionStorage.setItem('user_role', 'Operator');
-    if (typeof doLoginFirebase === 'function') {
-      doLoginFirebase(emailVal, pwd);
+    if (typeof window.doLoginFirebase === 'function') {
+      window.doLoginFirebase(emailVal, pwd);
     } else {
-      simulateLogin(emailVal, pwd);
+      // Firebase belum siap — coba lagi setelah 500ms
+      setTimeout(() => {
+        if (typeof window.doLoginFirebase === 'function') {
+          window.doLoginFirebase(emailVal, pwd);
+        } else {
+          err.textContent = '⚠ Koneksi Firebase belum siap. Refresh halaman.';
+          err.classList.add('show');
+          document.getElementById('pbar').style.width = '0%';
+          document.getElementById('btnTxt').textContent = 'Masuk ke Dashboard';
+        }
+      }, 500);
     }
   }
 
-  function simulateLogin(email, pwd) {
-    const pbar = document.getElementById('pbar');
-    const btnTxt = document.getElementById('btnTxt');
-    const toast = document.getElementById('toast');
+  function simulateLogin() {
+    const pbar     = document.getElementById('pbar');
+    const btnTxt   = document.getElementById('btnTxt');
+    const toast    = document.getElementById('toast');
     const toastMsg = document.getElementById('toast-msg');
 
-    // Animasi progress bar
     setTimeout(() => {
-      pbar.style.width = '100%';
-      btnTxt.textContent = 'Berhasil!';
+      if (pbar)   pbar.style.width = '100%';
+      if (btnTxt) btnTxt.textContent = 'Berhasil! ✓';
 
-      // Tampilkan toast notifikasi
-      toastMsg.textContent = 'Login berhasil! Mengalihkan ke Dashboard…';
-      toast.classList.add('show');
+      const name = sessionStorage.getItem('user_name') || 'Administrator';
+      if (toastMsg) toastMsg.textContent = `Selamat datang, ${name}! Mengalihkan ke Dashboard…`;
+      if (toast)    toast.classList.add('show');
 
-      // Redirect ke halaman dashboard setelah 1.5 detik
       setTimeout(() => {
         window.location.href = window.location.href.replace(/[^/]*$/, '') + 'index.html';
       }, 1500);
