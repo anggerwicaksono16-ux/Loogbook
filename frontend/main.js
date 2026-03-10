@@ -287,13 +287,13 @@ let _allLogbook = [];
 window.loadLogbook = async function() {
   const tbody = document.getElementById("tbl-logbook-body");
   if (!tbody) return;
-  tbody.innerHTML = `<tr><td colspan="9" class="text-center">⏳ Memuat…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="10" class="text-center">⏳ Memuat…</td></tr>`;
   try {
     _allLogbook = await getAllLogbook();
     _rebuildLatestCache(_allLogbook);
     renderLogbookTable(_allLogbook);
   } catch(err) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center text-red">Gagal: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-red">Gagal: ${err.message}</td></tr>`;
   }
 };
 
@@ -301,7 +301,7 @@ function renderLogbookTable(list) {
   const tbody = document.getElementById("tbl-logbook-body");
   if (!tbody) return;
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center">Tidak ada data.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center">Tidak ada data.</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(l => {
@@ -309,6 +309,18 @@ function renderLogbookTable(list) {
     const desc    = (l.deskripsi||l.uraian||"—").slice(0,50);
     const hasFoto = l.foto && l.foto.length > 0;
     const safeL   = encodeURIComponent(JSON.stringify(l));
+
+    // Thumbnail foto maks 2 langsung di tabel
+    const fotoThumb = hasFoto
+      ? l.foto.slice(0,2).map(b64 => {
+          const src = b64.startsWith("data:") ? b64 : `data:image/jpeg;base64,${b64}`;
+          return `<img src="${src}" onerror="this.style.display='none'"
+                       style="width:48px;height:36px;object-fit:cover;border-radius:4px;
+                              border:1px solid #445;display:inline-block;margin:1px;cursor:pointer;"
+                       onclick="window.open('${src}','_blank')" title="Klik perbesar">`;
+        }).join("") + (l.foto.length>2?`<span style="font-size:10px;color:#aac;margin-left:2px;">+${l.foto.length-2}</span>`:"")
+      : `<span style="color:#556;font-size:11px;">—</span>`;
+
     return `
     <tr>
       <td class="mono text-xs">${l.noRef||"—"}</td>
@@ -320,8 +332,8 @@ function renderLogbookTable(list) {
       <td class="text-xs desc-cell">${desc}${(l.deskripsi||l.uraian||"").length>50?"…":""}</td>
       <td>
         <span class="badge ${ada?"badge-red":"badge-green"}">${ada?"Ada Temuan":"Normal"}</span>
-        ${hasFoto?`<span title="${l.foto.length} foto" style="margin-left:4px;font-size:12px;">📷${l.foto.length}</span>`:""}
       </td>
+      <td style="min-width:55px;">${fotoThumb}</td>
       <td>
         <button class="btn btn-outline btn-xs" onclick="openDetailLogEncoded('${safeL}')">👁 Detail</button>
         <button class="btn btn-outline btn-xs btn-danger" onclick="hapusLogbook('${l.id}')">🗑️</button>
@@ -620,17 +632,12 @@ window.saveKapal = async function() {
     status     : document.getElementById("mk-status")?.value,
   };
   try {
-    showToast("⏳ Menyimpan...");
     await fbSaveKapal(data);
-    showToast("✓ Data kapal berhasil disimpan!");
+    showToast("✓ Data kapal disimpan!");
     _kapalCache = [];
     closeModalKapal();
-    await renderKapal();
-    if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
-  } catch(err) {
-    console.error("[saveKapal]", err);
-    showToast("✗ Gagal: " + (err.code==="permission-denied" ? "Akses ditolak Firebase" : err.message), "error");
-  }
+    renderKapal();
+  } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
 window.hapusKapal = async function(docId, nama) {
@@ -639,8 +646,7 @@ window.hapusKapal = async function(docId, nama) {
     await fbDeleteKapal(nama);
     showToast("✓ Kapal dihapus");
     _kapalCache = [];
-    await renderKapal();
-    if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
+    renderKapal();
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -699,10 +705,13 @@ window.saveAwak = async function() {
       const el = document.getElementById(id); if (el) el.value="";
     });
     await renderAwak();
-    if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
+    // Refresh dropdown nakhoda jika jabatan Nakhoda
+    if (typeof window.populateNakhodaDropdown === "function") {
+      window.populateNakhodaDropdown();
+    }
   } catch(err) {
     console.error("[saveAwak]", err);
-    showToast("✗ Gagal: " + (err.code==="permission-denied" ? "Akses ditolak Firebase" : err.message), "error");
+    showToast("✗ Gagal: " + (err.code === "permission-denied" ? "Akses ditolak Firebase — cek Rules" : err.message), "error");
   }
 };
 
@@ -712,7 +721,9 @@ window.hapusAwak = async function(docId, nama) {
     await fbDeleteAwak(docId);
     showToast("✓ Personel dihapus");
     await renderAwak();
-    if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
+    if (typeof window.populateNakhodaDropdown === "function") {
+      window.populateNakhodaDropdown();
+    }
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -740,21 +751,51 @@ window.renderRekapBulanan = async function() {
   } catch(err) { wrap.innerHTML=`<div class="empty-state error">${err.message}</div>`; }
 };
 
+// Helper: konvert URL foto (Firebase Storage / http) ke base64
+async function _urlToBase64(url) {
+  try {
+    if (!url || url.startsWith("data:")) return url;
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onloadend = function() { resolve(reader.result); };
+      reader.readAsDataURL(blob);
+    });
+  } catch(e) {
+    return url; // fallback: pakai URL asli
+  }
+}
+
+// Pastikan semua foto di list logbook sudah base64 sebelum di-print
+async function _resolveAllFoto(list) {
+  return Promise.all(list.map(async function(l) {
+    if (!l.foto || !l.foto.length) return l;
+    var resolvedFoto = await Promise.all(l.foto.map(_urlToBase64));
+    return Object.assign({}, l, {foto: resolvedFoto});
+  }));
+}
+
 window.generateReport = async function() {
   const jenis   = document.getElementById("lap-jenis")?.value;
   const periode = document.getElementById("lap-periode")?.value;
   const kapal   = document.getElementById("lap-kapal")?.value;
   const format  = document.getElementById("lap-format")?.value;
-  showToast(`⏳ Membuat ${jenis}…`);
+  showToast("⏳ Menyiapkan laporan + foto…");
   try {
     let list = await getAllLogbook();
     if (kapal) list = list.filter(l => l.kapal === kapal);
     if (periode) {
       const [y,m] = periode.split("-");
-      list = list.filter(l => l.tanggal >= `${y}-${m}-01` && l.tanggal <= `${y}-${m}-31`);
+      list = list.filter(l => l.tanggal >= y+"-"+m+"-01" && l.tanggal <= y+"-"+m+"-31");
     }
-    if (format === "Excel (CSV)") exportToCSV(list, `laporan-${periode||"semua"}.csv`);
-    else printReport(list, jenis, periode, kapal);
+    if (format === "Excel (CSV)") {
+      exportToCSV(list, "laporan-"+(periode||"semua")+".csv");
+    } else {
+      showToast("⏳ Memuat foto…");
+      list = await _resolveAllFoto(list);
+      printReport(list, jenis, periode, kapal);
+    }
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -774,44 +815,134 @@ function exportToCSV(data, filename) {
 }
 
 function printReport(data, jenis, periode, kapal) {
-  const rows = data.map((l,i)=>`
-    <tr><td>${i+1}</td><td>${l.noRef||"—"}</td><td>${l.tanggal||"—"}</td>
-    <td>${l.kapal||"—"}</td><td>${l.nakhoda||"—"}</td>
-    <td>${l.jenisAktivitas||"—"}</td><td>${l.wilayah||"—"}</td>
-    <td>${l.temuan||"—"}</td></tr>`).join("");
-  const win = window.open("","_blank");
-  win.document.write(`<!DOCTYPE html><html><head><title>${jenis}</title>
-    <style>body{font-family:Arial;font-size:12px;padding:20px}h2{text-align:center}
-    table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px 8px}
-    th{background:#1a3a5c;color:#fff}@media print{button{display:none}}</style></head><body>
-    <h2>KSOP UTAMA MAKASSAR · KANTOR KESYAHBANDARAN</h2>
-    <h3 style="text-align:center">${jenis} — Periode: ${periode||"Semua"} | Kapal: ${kapal||"Semua"}</h3>
-    <table><thead><tr><th>No</th><th>No.Ref</th><th>Tanggal</th><th>Kapal</th>
-    <th>Nakhoda</th><th>Aktivitas</th><th>Wilayah</th><th>Temuan</th></tr></thead>
-    <tbody>${rows}</tbody></table><br>
-    <button onclick="window.print()">🖨️ Cetak</button></body></html>`);
+  var today = new Date().toLocaleDateString("id-ID", {day:"numeric", month:"long", year:"numeric"});
+  var adaFoto = data.some(function(l) { return l.foto && l.foto.length; });
+
+  var rows = data.map(function(l, i) {
+    var bg = i % 2 === 0 ? "" : "background:#f8f9fa;";
+
+    var fotoHtml = "<span style='color:#aaa;font-size:11px;'>-</span>";
+    if (l.foto && l.foto.length) {
+      var thumbs = l.foto.slice(0, 3).map(function(b64) {
+        var src = b64.indexOf("data:") === 0 ? b64 : "data:image/jpeg;base64," + b64;
+        return "<img src='" + src + "' style='width:80px;height:60px;object-fit:cover;border-radius:4px;border:1px solid #ccc;display:inline-block;margin:2px;'>";
+      }).join("");
+      var sisa = l.foto.length > 3 ? "<div style='font-size:10px;color:#555;'>+" + (l.foto.length - 3) + " lagi</div>" : "";
+      fotoHtml = "<div style='display:flex;flex-wrap:wrap;gap:3px;'>" + thumbs + "</div>" + sisa;
+    }
+
+    var temuanHtml = (l.temuan && l.temuan.trim())
+      ? "<span style='background:#f8d7da;color:#721c24;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600;'>Ada Temuan</span>"
+      : "<span style='background:#d4edda;color:#155724;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:600;'>Normal</span>";
+
+    return "<tr style='" + bg + "'>" +
+      "<td style='text-align:center;'>" + (i + 1) + "</td>" +
+      "<td style='font-family:monospace;font-size:11px;'>" + (l.noRef || "-") + "</td>" +
+      "<td>" + (l.tanggal || "-") + "</td>" +
+      "<td><b>" + (l.kapal || "-") + "</b></td>" +
+      "<td>" + (l.nakhoda || "-") + "</td>" +
+      "<td>" + (l.jenisAktivitas || "-") + "</td>" +
+      "<td>" + (l.wilayah || "-") + "</td>" +
+      "<td>" + temuanHtml + "</td>" +
+      "<td style='min-width:200px;'>" + fotoHtml + "</td>" +
+      "</tr>";
+  }).join("");
+
+  var win = window.open("", "_blank");
+  if (!win) { alert("Popup diblokir. Izinkan popup lalu coba lagi."); return; }
+
+  var css =
+    "*{box-sizing:border-box;margin:0;padding:0}" +
+    "body{font-family:Arial,sans-serif;font-size:12px;color:#222;background:#fff}" +
+    ".toolbar{position:sticky;top:0;z-index:100;background:#1a3a5c;color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;}" +
+    ".btn-print{background:#fff;color:#1a3a5c;border:none;padding:7px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;}" +
+    ".kop{display:flex;align-items:center;gap:16px;padding:18px 24px 14px;border-bottom:3px solid #1a3a5c;}" +
+    ".kop-ico{width:60px;height:60px;background:#1a3a5c;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;}" +
+    ".kop-title{font-size:17px;font-weight:700;color:#1a3a5c;}" +
+    ".kop-sub{font-size:11px;color:#777;margin-top:2px;}" +
+    ".lap-meta{background:#f0f4f8;border-bottom:1px solid #dce3ea;padding:10px 24px;display:flex;gap:24px;font-size:12px;}" +
+    ".lap-meta b{color:#1a3a5c;}" +
+    ".wrap{padding:18px 24px;}" +
+    ".tbl-title{font-size:11px;font-weight:700;color:#1a3a5c;text-transform:uppercase;letter-spacing:.6px;border-bottom:2px solid #1a3a5c;padding-bottom:6px;margin-bottom:14px;}" +
+    "table{border-collapse:collapse;width:100%}" +
+    "th,td{border:1px solid #d0dae4;padding:7px 9px;vertical-align:top;text-align:left;}" +
+    "th{background:#1a3a5c;color:#fff;font-size:11px;font-weight:600;white-space:nowrap;}" +
+    "tr:hover{background:#f0f7ff;}" +
+    ".footer{margin-top:24px;padding:14px 24px;border-top:1px solid #dce3ea;display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;color:#666;}" +
+    ".ttd{text-align:center;min-width:180px;}" +
+    ".ttd-line{margin-top:50px;border-top:1px solid #333;padding-top:4px;font-weight:700;color:#1a3a5c;}" +
+    "@media print{.toolbar{display:none!important}img{max-width:100%!important}tr{page-break-inside:avoid}}";
+
+  var html =
+    "<!DOCTYPE html><html lang='id'><head><meta charset='UTF-8'>" +
+    "<title>" + jenis + " - KSOP Makassar</title>" +
+    "<style>" + css + "</style></head><body>" +
+    "<div class='toolbar'>" +
+      "<span>Pratinjau - " + jenis + "</span>" +
+      "<button class='btn-print' onclick='window.print()'>Cetak / Simpan PDF</button>" +
+    "</div>" +
+    "<div class='kop'>" +
+      "<div class='kop-ico'>&#9875;</div>" +
+      "<div style='flex:1;'>" +
+        "<div style='font-size:9px;color:#666;text-transform:uppercase;letter-spacing:1px;'>Kementerian Perhubungan - Ditjen Perhubungan Laut</div>" +
+        "<div class='kop-title'>KSOP UTAMA MAKASSAR</div>" +
+        "<div class='kop-sub'>Kantor Kesyahbandaran dan Otoritas Pelabuhan Utama Makassar</div>" +
+        "<div class='kop-sub' style='color:#bbb;'>Jl. Hatta No. 4 Makassar - Telp. (0411) 317001</div>" +
+      "</div>" +
+      "<div style='text-align:right;font-size:11px;color:#666;'>Dicetak: <b>" + today + "</b></div>" +
+    "</div>" +
+    "<div class='lap-meta'>" +
+      "<div><span style='font-size:9px;color:#888;text-transform:uppercase;'>Jenis</span><br><b>" + jenis + "</b></div>" +
+      "<div><span style='font-size:9px;color:#888;text-transform:uppercase;'>Periode</span><br><b>" + (periode || "Semua") + "</b></div>" +
+      "<div><span style='font-size:9px;color:#888;text-transform:uppercase;'>Kapal</span><br><b>" + (kapal || "Semua") + "</b></div>" +
+      "<div><span style='font-size:9px;color:#888;text-transform:uppercase;'>Total</span><br><b>" + data.length + " aktivitas</b></div>" +
+      (adaFoto ? "<div><span style='font-size:9px;color:#888;text-transform:uppercase;'>Dokumentasi</span><br><b style='color:#1a7f40;'>Tersedia</b></div>" : "") +
+    "</div>" +
+    "<div class='wrap'>" +
+      "<div class='tbl-title'>Daftar Aktivitas &amp; Dokumentasi</div>" +
+      "<table><thead><tr>" +
+        "<th>No</th><th>No. Ref</th><th>Tanggal</th><th>Kapal</th>" +
+        "<th>Nakhoda</th><th>Aktivitas</th><th>Wilayah</th><th>Status</th><th>Foto</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table>" +
+    "</div>" +
+    "<div class='footer'>" +
+      "<div>Dokumen digenerate otomatis oleh sistem E-Logbook KSOP Makassar.<br>" +
+        "<span style='color:#aaa;'>Total " + data.length + " entri - Dicetak: " + today + "</span>" +
+      "</div>" +
+      "<div class='ttd'>" +
+        "<div>Makassar, " + today + "</div>" +
+        "<div style='margin-top:2px;'>Kepala Bidang Keselamatan Berlayar</div>" +
+        "<div class='ttd-line'>___________________________</div>" +
+        "<div style='font-size:11px;color:#555;'>NIP. .................................</div>" +
+      "</div>" +
+    "</div>" +
+    "</body></html>";
+
+  win.document.write(html);
   win.document.close();
 }
 
-// ══════════════════════════════════════════════
-//  EXPORT MENU
-// ══════════════════════════════════════════════
-// Expose ke window agar data.js bisa akses
-window.getAllKapal = getAllKapal;
-window.getAllAwak  = getAllAwak;
-
 window.toggleExportMenu = function(e) {
   e.stopPropagation();
-  document.getElementById("export-menu").classList.toggle("open");
+  var menu = document.getElementById("export-menu");
+  if (menu) menu.classList.toggle("open");
 };
-document.addEventListener("click", () => {
-  document.getElementById("export-menu")?.classList.remove("open");
+
+document.addEventListener("click", function() {
+  var menu = document.getElementById("export-menu");
+  if (menu) menu.classList.remove("open");
 });
+
 window.exportCSV = async function() {
   exportToCSV(await getAllLogbook(), "logbook-export.csv");
 };
 window.exportPDF = async function() {
-  printReport(await getAllLogbook(), "Laporan Lengkap","","");
+  showToast("⏳ Memuat foto…");
+  try {
+    var list = await getAllLogbook();
+    list = await _resolveAllFoto(list);
+    printReport(list, "Laporan Lengkap", "", "");
+  } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
 // ══════════════════════════════════════════════
@@ -910,8 +1041,8 @@ refreshDashboard();
 
 console.log("[E-logbook] ✅ Semua modul siap, Firebase terhubung.");
 
-// Isi dropdown dari Firebase saat halaman pertama load
+// Isi dropdown kapal & nakhoda dari Firebase saat pertama load
 setTimeout(() => {
   if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
   if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
-}, 600);
+}, 500);
