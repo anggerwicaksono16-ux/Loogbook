@@ -58,15 +58,22 @@ onAuthStateChanged(auth, (user) => {
   const isAdminLocal = sessionStorage.getItem("user_role") === "Admin" &&
                        sessionStorage.getItem("user_uid")  === "admin-local";
 
+  // ✅ Jika Admin lokal sedang aktif, JANGAN diproses lebih lanjut
+  // apapun state Firebase-nya — Admin tidak pakai Firebase Auth
+  if (isAdminLocal) {
+    if (isLoginPage) {
+      // Admin sudah login tapi masih di halaman login → masuk dashboard
+      window.location.replace(REDIRECT_URL);
+    }
+    // Admin di dashboard → biarkan, tidak perlu tindakan apapun
+    return;
+  }
+
   if (user && isLoginPage) {
     // Operator sudah login Firebase, masih di halaman login → masuk dashboard
     window.location.replace(REDIRECT_URL);
 
-  } else if (isLoginPage && isAdminLocal) {
-    // Admin lokal sudah login, masih di halaman login → masuk dashboard
-    window.location.replace(REDIRECT_URL);
-
-  } else if (!user && isDashboard && !isAdminLocal) {
+  } else if (!user && isDashboard) {
     // Bukan Firebase user DAN bukan Admin lokal → lempar ke login
     window.location.replace("login.html");
 
@@ -83,14 +90,13 @@ onAuthStateChanged(auth, (user) => {
       avEl.innerHTML = '<img src="' + user.photoURL + '" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">';
     }
 
-    // Simpan ke sessionStorage sebagai backup
+    // Simpan ke sessionStorage — hanya untuk Operator (Admin sudah di-guard di atas)
     sessionStorage.setItem("user_uid",   user.uid          || "");
     sessionStorage.setItem("user_name",  user.displayName  || "");
     sessionStorage.setItem("user_email", user.email        || "");
     sessionStorage.setItem("user_photo", user.photoURL     || "");
     sessionStorage.setItem("user_role",  "Operator");
   }
-  // Jika isAdminLocal && isDashboard → biarkan, halaman sudah handle via sessionStorage
 });
 
 // ============================================================
