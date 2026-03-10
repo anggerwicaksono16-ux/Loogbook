@@ -637,6 +637,10 @@ window.saveKapal = async function() {
     _kapalCache = [];
     closeModalKapal();
     renderKapal();
+    // ✅ Refresh semua dropdown kapal agar nama baru langsung muncul di semua form
+    if (typeof window.populateKapalDropdowns === "function") {
+      await window.populateKapalDropdowns();
+    }
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -647,6 +651,10 @@ window.hapusKapal = async function(docId, nama) {
     showToast("✓ Kapal dihapus");
     _kapalCache = [];
     renderKapal();
+    // ✅ Hapus nama kapal yang sudah dihapus dari semua dropdown
+    if (typeof window.populateKapalDropdowns === "function") {
+      await window.populateKapalDropdowns();
+    }
   } catch(err) { showToast("✗ " + err.message, "error"); }
 };
 
@@ -951,11 +959,8 @@ window.exportPDF = async function() {
 window.seedKapalAwal = seedKapalAwal;
 
 // ══════════════════════════════════════════════
-//  INIT — jalankan saat DOM siap
-// ══════════════════════════════════════════════
-// ──────────────────────────────────────────────────────────────
 //  HELPER: Hitung & tampilkan kapal perbaikan dari cache logbook
-// ──────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════
 
 /** Hitung jumlah kapal yang statusnya maintenance/docking dari cache */
 function _hitungKapalPerbaikan(kapalList) {
@@ -1010,14 +1015,9 @@ function _updateCacheFromNewEntry(entry) {
 /** Refresh hanya widget status kapal & counter perbaikan — tanpa re-fetch Firebase */
 async function _refreshStatusKapalWidget() {
   try {
-    // Ambil daftar kapal dari Firebase untuk dapatkan list nama + status asli
     const kapalList = await getAllKapal().catch(() => []);
     if (!kapalList.length) return;
-
-    // Re-render panel Status Kapal
     renderShipStatusMini(kapalList);
-
-    // Update counter & subtitle
     const jumlah = _hitungKapalPerbaikan(kapalList);
     const statEl = document.getElementById("stat-perbaikan");
     if (statEl) statEl.textContent = jumlah;
@@ -1027,9 +1027,107 @@ async function _refreshStatusKapalWidget() {
   }
 }
 
-// ──────────────────────────────────────────────────────────────
-//  INIT
-// ──────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════
+//  POPULATE DROPDOWN KAPAL & NAKHODA
+//  Didefinisikan di sini agar tersedia secara global (window.*)
+//  dan bisa dipanggil dari data.js maupun file lain
+// ══════════════════════════════════════════════
+
+/**
+ * Isi semua <select> yang menampilkan pilihan kapal.
+ * Opsi pertama (placeholder) dipertahankan, kapal dari Firebase ditambahkan di bawahnya.
+ * Dipanggil:
+ *   - Saat halaman pertama dibuka (setTimeout di bawah)
+ *   - Setelah saveKapal()
+ *   - Setelah hapusKapal()
+ */
+window.populateKapalDropdowns = async function() {
+  try {
+    const list     = await getAllKapal();
+    const namaList = list.map(k => k.nama).filter(Boolean).sort();
+
+    // Semua dropdown yang butuh daftar kapal
+    const targetIds = [
+      "f-kapal",       // ✏️ Form Input Aktivitas  ← UTAMA
+      "filter-kapal",  // 📋 Filter Riwayat Logbook
+      "lap-kapal",     // 📄 Form Laporan
+      "m-kapal",       // 👤 Modal Tambah Personel
+    ];
+
+    targetIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      // Simpan nilai yang sedang dipilih supaya tidak reset
+      const selected = el.value;
+
+      // Hapus semua opsi kecuali opsi pertama (placeholder)
+      while (el.options.length > 1) el.remove(1);
+
+      // Tambahkan opsi kapal dari Firebase
+      namaList.forEach(nama => {
+        const opt       = document.createElement("option");
+        opt.value       = nama;
+        opt.textContent = nama;
+        el.appendChild(opt);
+      });
+
+      // Kembalikan pilihan sebelumnya jika masih tersedia
+      if (selected && namaList.includes(selected)) {
+        el.value = selected;
+      }
+    });
+
+    console.log(`[populateKapalDropdowns] ✅ ${namaList.length} kapal → ${targetIds.length} dropdown`);
+  } catch (err) {
+    console.warn("[populateKapalDropdowns] ✗", err);
+  }
+};
+
+/**
+ * Isi dropdown Nakhoda dari data Awak yang jabatannya "Nakhoda".
+ * Dipanggil:
+ *   - Saat halaman pertama dibuka
+ *   - Setelah saveAwak()
+ *   - Setelah hapusAwak()
+ */
+window.populateNakhodaDropdown = async function() {
+  try {
+    const list = await getAllAwak();
+    const nakhodaList = list
+      .filter(a => (a.jabatan || "").toLowerCase().includes("nakhoda"))
+      .map(a => a.nama)
+      .filter(Boolean)
+      .sort();
+
+    const el = document.getElementById("f-nakhoda");
+    if (!el) return;
+
+    const selected = el.value;
+
+    // Bersihkan kecuali placeholder
+    while (el.options.length > 1) el.remove(1);
+
+    nakhodaList.forEach(nama => {
+      const opt       = document.createElement("option");
+      opt.value       = nama;
+      opt.textContent = nama;
+      el.appendChild(opt);
+    });
+
+    if (selected && nakhodaList.includes(selected)) {
+      el.value = selected;
+    }
+
+    console.log(`[populateNakhodaDropdown] ✅ ${nakhodaList.length} nakhoda dimuat`);
+  } catch (err) {
+    console.warn("[populateNakhodaDropdown] ✗", err);
+  }
+};
+
+// ══════════════════════════════════════════════
+//  INIT — jalankan saat DOM siap
+// ══════════════════════════════════════════════
 generateNoRefDisplay();
 
 // Set tanggal hari ini di form
@@ -1043,6 +1141,6 @@ console.log("[E-logbook] ✅ Semua modul siap, Firebase terhubung.");
 
 // Isi dropdown kapal & nakhoda dari Firebase saat pertama load
 setTimeout(() => {
-  if (typeof window.populateKapalDropdowns === 'function') window.populateKapalDropdowns();
-  if (typeof window.populateNakhodaDropdown === 'function') window.populateNakhodaDropdown();
+  if (typeof window.populateKapalDropdowns  === "function") window.populateKapalDropdowns();
+  if (typeof window.populateNakhodaDropdown === "function") window.populateNakhodaDropdown();
 }, 500);
