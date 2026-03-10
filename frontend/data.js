@@ -145,32 +145,124 @@ function getKapalSedangPerbaikan() {
    yang sudah ditambahkan via modal).
    ══════════════════════════════════════════════════════════ */
 function populateKapalDropdowns() {
-  const ids = ['f-kapal','filter-kapal','lap-kapal','m-kapal'];
-  function _isi(list) {
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const sel = el.value;
-      while (el.options.length > 1) el.remove(1);
-      list.forEach(k => {
-        const o = document.createElement('option');
-        o.value = o.textContent = k.nama || '';
-        el.appendChild(o);
-      });
-      if (sel) el.value = sel;
+  // ID semua select yang perlu diisi nama kapal
+  const dropdownIds = [
+    'f-kapal',        // Form Input Aktivitas
+    'filter-kapal',   // Filter Riwayat Logbook
+    'lap-kapal',      // Laporan
+    'm-kapal',        // Modal Tambah Awak
+  ];
+
+  dropdownIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    // Simpan nilai yang sedang dipilih agar tidak reset
+    const selectedVal = el.value;
+
+    // Hapus semua opsi kecuali opsi pertama (placeholder / "Semua Kapal")
+    while (el.options.length > 1) el.remove(1);
+
+    // Isi ulang dari kapalData
+    kapalData.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.nama;
+      opt.textContent = k.nama;
+      el.appendChild(opt);
     });
+
+    // Kembalikan pilihan sebelumnya jika masih ada
+    if (selectedVal) el.value = selectedVal;
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   FUNGSI: saveKapal()
+   Menyimpan data kapal baru dari modal ke kapalData,
+   lalu refresh semua dropdown dan kartu kapal.
+   ══════════════════════════════════════════════════════════ */
+function saveKapal() {
+  const nama = (document.getElementById('mk-nama')?.value || '').trim();
+  if (!nama) {
+    alert('Nama kapal tidak boleh kosong.');
+    return;
   }
-  if (typeof window.getAllKapal === 'function') {
-    window.getAllKapal()
-      .then(fb => {
-        const fbNames = fb.map(k=>(k.nama||'').toLowerCase());
-        const lokal = kapalData.filter(k=>!fbNames.includes(k.nama.toLowerCase()));
-        _isi([...fb,...lokal]);
-      })
-      .catch(()=>_isi(kapalData));
+
+  // Cek duplikasi nama
+  const sudahAda = kapalData.some(k => k.nama.toLowerCase() === nama.toLowerCase());
+  if (sudahAda) {
+    alert(`Kapal "${nama}" sudah ada dalam daftar.`);
+    return;
+  }
+
+  // Buat objek kapal baru
+  const kapalBaru = {
+    nama,
+    callsign    : document.getElementById('mk-callsign')?.value   || '',
+    tipe        : `Kapal ${document.getElementById('mk-kelas')?.value || 'Patroli'}`,
+    tahun       : parseInt(document.getElementById('mk-tahun')?.value) || new Date().getFullYear(),
+    imo         : document.getElementById('mk-imo')?.value         || '',
+    panjang     : document.getElementById('mk-ukuran')?.value      || '',
+    gt          : document.getElementById('mk-gt')?.value          || '',
+    konstruksi  : document.getElementById('mk-konstruksi')?.value  || '',
+    kecepatan   : document.getElementById('mk-me-kecepatan')?.value || '',
+    mesin       : `${document.getElementById('mk-me-merk')?.value || ''} ${document.getElementById('mk-me-daya')?.value || ''}`.trim(),
+    bbm         : document.getElementById('mk-bbm')?.value         || '',
+    abkMaks     : parseInt(document.getElementById('mk-crew')?.value) || 0,
+    status      : document.getElementById('mk-status')?.value      || 'standby',
+  };
+
+  // Tambahkan ke array lokal
+  kapalData.push(kapalBaru);
+
+  // Refresh semua dropdown kapal di halaman
+  populateKapalDropdowns();
+
+  // Jika ada fungsi renderKapal (dari app.js), panggil untuk update kartu
+  if (typeof window.renderKapal === 'function') window.renderKapal();
+  if (typeof window.refreshDashboard === 'function') window.refreshDashboard();
+
+  // Tutup modal & reset field
+  closeModalKapal();
+
+  // Toast notifikasi
+  if (typeof showToast === 'function') showToast(`✓ Kapal "${nama}" berhasil ditambahkan`);
+}
+
+/* ── Helper: tutup modal kapal ── */
+function closeModalKapal() {
+  const modal = document.getElementById('modal-kapal');
+  if (modal) modal.classList.remove('open');
+
+  // Reset semua field modal
+  ['mk-nama','mk-callsign','mk-imo','mk-ukuran','mk-konstruksi','mk-gt','mk-tahun',
+   'mk-bbm','mk-air','mk-crew','mk-tanki','mk-me-merk','mk-me-daya','mk-me-hpbbm',
+   'mk-me-kecepatan','mk-ae-merk','mk-ae-daya','mk-ae-hpbbm','mk-ae-kecepatan']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+}
+
+/* ── Helper: buka modal kapal ── */
+function openModalKapal(namaKapal) {
+  const modal = document.getElementById('modal-kapal');
+  if (!modal) return;
+
+  if (namaKapal) {
+    // Mode edit — isi field dari data yang ada
+    const k = kapalData.find(x => x.nama === namaKapal);
+    if (k) {
+      document.getElementById('mk-nama').value  = k.nama   || '';
+      document.getElementById('mk-imo').value   = k.imo    || '';
+      document.getElementById('mk-tahun').value = k.tahun  || '';
+      document.getElementById('mk-gt').value    = k.gt     || '';
+      document.getElementById('mk-bbm').value   = k.bbm    || '';
+      document.getElementById('mk-crew').value  = k.abkMaks|| '';
+    }
+    document.getElementById('modal-kapal-title').textContent = `Edit Kapal: ${namaKapal}`;
   } else {
-    _isi(kapalData);
+    document.getElementById('modal-kapal-title').textContent = 'Tambah Kapal Baru';
   }
+
+  modal.classList.add('open');
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -182,23 +274,29 @@ function populateNakhodaDropdown() {
   const el = document.getElementById('f-nakhoda');
   if (!el) return;
   const current = el.value;
+
   function _isi(list) {
     while (el.options.length > 1) el.remove(1);
-    list.filter(a=>a.jabatan==='Nakhoda').forEach(a => {
-      const o = document.createElement('option');
-      o.value = o.textContent = a.nama || '';
-      el.appendChild(o);
-    });
+    list
+      .filter(a => a.jabatan === 'Nakhoda')
+      .forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.nama || '';
+        opt.textContent = a.nama || '';
+        el.appendChild(opt);
+      });
     if (current) el.value = current;
   }
+
+  // Ambil dari Firebase jika tersedia, fallback ke awakData lokal
   if (typeof window.getAllAwak === 'function') {
     window.getAllAwak()
-      .then(fb => {
-        const fbNames = fb.map(a=>(a.nama||'').toLowerCase());
-        const lokal = awakData.filter(a=>!fbNames.includes(a.nama.toLowerCase()));
-        _isi([...fb,...lokal]);
+      .then(fbList => {
+        const namaFb = fbList.map(a => (a.nama||'').toLowerCase());
+        const lokal  = awakData.filter(a => !namaFb.includes(a.nama.toLowerCase()));
+        _isi([...fbList, ...lokal]);
       })
-      .catch(()=>_isi(awakData));
+      .catch(() => _isi(awakData));
   } else {
     _isi(awakData);
   }
@@ -351,18 +449,30 @@ function pushLogbookEntry(entry) {
 }
 
 // Expose ke window agar bisa diakses dari dashboard.js
+// ⚠️ Gunakan ||= agar TIDAK menimpa fungsi Firebase dari main.js
 if (typeof window !== 'undefined') {
-  window._getAllLogbook            = getAllLogbook;
-  window._getKapalPerbaikan       = getKapalSedangPerbaikan;
-  window.getStatusKapalDashboard  = getStatusKapalDashboard;
-  window.pushLogbookEntry         = pushLogbookEntry;
-  window.populateKapalDropdowns   = populateKapalDropdowns;
-  window.populateNakhodaDropdown  = populateNakhodaDropdown;
-  window.onJabatanChange          = onJabatanChange;
+  // Selalu expose — fungsi unik milik data.js
+  window._getAllLogbook           = getAllLogbook;
+  window._getKapalPerbaikan      = getKapalSedangPerbaikan;
+  window.getStatusKapalDashboard = getStatusKapalDashboard;
+  window.pushLogbookEntry        = pushLogbookEntry;
+  window.onJabatanChange         = onJabatanChange;
+  window.openModalKapal          = openModalKapal;
+  window.closeModalKapal         = closeModalKapal;
+  window.kapalData               = kapalData;
+  window.awakData                = awakData;
+  window.logbookData             = logbookData;
 
-  window.kapalData                = kapalData;
-  window.awakData                 = awakData;
-  window.logbookData              = logbookData;
+  // ✅ Hanya set jika main.js BELUM mendefinisikan versi Firebase-nya
+  if (typeof window.saveKapal !== 'function') {
+    window.saveKapal = saveKapal;
+  }
+  if (typeof window.populateKapalDropdowns !== 'function') {
+    window.populateKapalDropdowns = populateKapalDropdowns;
+  }
+  if (typeof window.populateNakhodaDropdown !== 'function') {
+    window.populateNakhodaDropdown = populateNakhodaDropdown;
+  }
 
   // Isi semua dropdown saat DOM siap
   if (document.readyState === 'loading') {
