@@ -24,6 +24,30 @@ import {
 } from "./firebase.js";
 
 // ══════════════════════════════════════════════
+//  window._fb — bridge Firebase untuk dashboard.js,
+//  logbook.js, dan app.js yang tidak bisa import module
+// ══════════════════════════════════════════════
+window._fb = {
+  saveLogbook       : fbSaveLogbook,
+  getAllLogbook,
+  getLogbookBulanIni,
+  getRecentLogbook,
+  deleteLogbook     : fbDeleteLogbook,
+  listenLogbook,
+  saveKapal         : fbSaveKapal,
+  getAllKapal,
+  updateStatusKapal,
+  deleteKapal       : fbDeleteKapal,
+  saveAwak          : fbSaveAwak,
+  getAllAwak,
+  deleteAwak        : fbDeleteAwak,
+  getStatsDashboard,
+};
+
+// Dispatch event agar modul lain tahu Firebase sudah siap
+window.dispatchEvent(new Event("firebase-ready"));
+
+// ══════════════════════════════════════════════
 //  JAM & TANGGAL LIVE
 // ══════════════════════════════════════════════
 function updateClock() {
@@ -1144,3 +1168,116 @@ setTimeout(() => {
   if (typeof window.populateKapalDropdowns  === "function") window.populateKapalDropdowns();
   if (typeof window.populateNakhodaDropdown === "function") window.populateNakhodaDropdown();
 }, 500);
+
+// ══════════════════════════════════════════════
+//  GUARD — Pastikan fungsi Firebase dari main.js
+//  tidak tertimpa oleh data.js yang load belakangan.
+//  Dijalankan setelah semua module selesai (setTimeout 0).
+// ══════════════════════════════════════════════
+setTimeout(() => {
+  // Re-pin fungsi Firebase ke window menggunakan referensi lokal
+  // yang sudah pasti correct (fbSaveKapal, getAllKapal, dll)
+  window.saveKapal = async function() {
+    const nama = document.getElementById("mk-nama")?.value?.trim();
+    if (!nama) { showToast("⚠️ Nama kapal wajib diisi","warn"); return; }
+    const data = {
+      nama,
+      callSign    : document.getElementById("mk-callsign")?.value,
+      kelas       : document.getElementById("mk-kelas")?.value,
+      panjang     : document.getElementById("mk-ukuran")?.value,
+      konstruksi  : document.getElementById("mk-konstruksi")?.value,
+      gt          : document.getElementById("mk-gt")?.value,
+      tahunBuat   : document.getElementById("mk-tahun")?.value,
+      kapasitasBBM: document.getElementById("mk-bbm")?.value,
+      airTawar    : document.getElementById("mk-air")?.value,
+      jumlahCrew  : document.getElementById("mk-crew")?.value,
+      tankiHarian : document.getElementById("mk-tanki")?.value,
+      meMerk      : document.getElementById("mk-me-merk")?.value,
+      meDaya      : document.getElementById("mk-me-daya")?.value,
+      meHpBBM     : document.getElementById("mk-me-hpbbm")?.value,
+      meKecepatan : document.getElementById("mk-me-kecepatan")?.value,
+      aeMerk      : document.getElementById("mk-ae-merk")?.value,
+      aeDaya      : document.getElementById("mk-ae-daya")?.value,
+      aeHpBBM     : document.getElementById("mk-ae-hpbbm")?.value,
+      aeKecepatan : document.getElementById("mk-ae-kecepatan")?.value,
+      imo         : document.getElementById("mk-imo")?.value,
+      status      : document.getElementById("mk-status")?.value,
+    };
+    try {
+      await fbSaveKapal(data);
+      showToast("✓ Data kapal disimpan!");
+      _kapalCache = [];
+      if (typeof closeModalKapal === "function") closeModalKapal();
+      renderKapal();
+      await window.populateKapalDropdowns();
+    } catch(err) { showToast("✗ " + err.message, "error"); }
+  };
+
+  window.hapusKapal = async function(docId, nama) {
+    if (!confirm(`Hapus kapal "${nama}"?`)) return;
+    try {
+      await fbDeleteKapal(nama);
+      showToast("✓ Kapal dihapus");
+      _kapalCache = [];
+      renderKapal();
+      await window.populateKapalDropdowns();
+    } catch(err) { showToast("✗ " + err.message, "error"); }
+  };
+
+  window.populateKapalDropdowns = async function() {
+    try {
+      const list = await getAllKapal();
+      const namaList = list.map(k => k.nama).filter(Boolean).sort();
+      ["f-kapal","filter-kapal","lap-kapal","m-kapal"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const cur = el.value;
+        while (el.options.length > 1) el.remove(1);
+        namaList.forEach(nama => {
+          const o = document.createElement("option");
+          o.value = nama; o.textContent = nama;
+          el.appendChild(o);
+        });
+        if (cur && namaList.includes(cur)) el.value = cur;
+      });
+      // Sync ke window.kapalData lokal juga
+      if (window.kapalData) {
+        list.forEach(fb => {
+          if (!window.kapalData.find(k => k.nama === fb.nama)) {
+            window.kapalData.push(fb);
+          }
+        });
+      }
+      console.log(`[populateKapalDropdowns] ✅ ${namaList.length} kapal (Firebase)`);
+    } catch(err) {
+      console.warn("[populateKapalDropdowns] Firebase gagal, pakai lokal:", err);
+    }
+  };
+
+  window.refreshDashboard = async function() {
+    try {
+      const [stats, recent] = await Promise.all([
+        getStatsDashboard(),
+        getRecentLogbook(8)
+      ]);
+      if (typeof renderTimeline    === "function") renderTimeline(recent);
+      if (typeof renderBarChart    === "function") renderBarChart(stats.rekapJenis);
+      if (typeof renderRecentTable === "function") renderRecentTable(recent);
+      if (typeof renderShipStatusMini === "function") renderShipStatusMini(stats.semuaKapal);
+      ["stat-aktif","stat-total","stat-pelanggaran"].forEach((id, i) => {
+        const el = document.getElementById(id);
+        const val = [stats.kapalAktifHariIni, stats.totalAktivitasBulanIni, stats.pelanggaranBulanIni][i];
+        if (el && typeof animateCount === "function") animateCount(id, val);
+      });
+    } catch(err) { console.error("[refreshDashboard]", err); }
+  };
+
+  // Re-trigger dropdown dan dashboard dengan fungsi yang sudah benar
+  window.populateKapalDropdowns();
+  if (typeof window.populateNakhodaDropdown === "function") {
+    window.populateNakhodaDropdown();
+  }
+  window.refreshDashboard();
+
+  console.log("[main.js] ✅ Guard aktif — fungsi Firebase terpasang kembali");
+}, 100);
