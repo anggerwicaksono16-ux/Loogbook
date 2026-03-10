@@ -66,6 +66,53 @@
       0%,100% { opacity:1; }
       50%      { opacity:0.6; }
     }
+
+    /* ── Info Card Kapal ── */
+    #kapal-info-card {
+      display: none;
+      margin-top: 14px;
+      animation: kic-in .2s ease;
+    }
+    @keyframes kic-in {
+      from { opacity:0; transform:translateY(-4px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .kic-wrap {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(0,200,224,0.2);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 340px;
+    }
+    .kic-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .kic-nama { font-size: 14px; font-weight: 700; color: #cde0f0; }
+    .kic-tipe { font-size: 11px; color: #5a8aaa; margin-top: 2px; }
+    .kic-badge {
+      font-size: 10px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px;
+      flex-shrink: 0;
+    }
+    .kic-green { background:rgba(78,203,113,.18); color:#4ecb71; }
+    .kic-blue  { background:rgba(0,200,224,.15);  color:#00c8e0; }
+    .kic-red   { background:rgba(224,82,82,.18);  color:#e05252; }
+    .kic-gold  { background:rgba(240,192,64,.18); color:#f0c040; }
+    .kic-body  { padding: 6px 14px 10px; }
+    .kic-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 12px;
+    }
+    .kic-row:last-child { border-bottom: none; }
+    .kic-row span { color: #5a8aaa; }
+    .kic-row b    { color: #cde0f0; }
   </style>
 
 </head>
@@ -227,7 +274,7 @@
           <div class="form-grid">
             <div class="form-group">
               <label>Nama Kapal *</label>
-              <select id="f-kapal" required>
+              <select id="f-kapal" required onchange="onKapalChange(this)">
                 <option value="">— Pilih Kapal —</option>
                 <!-- Opsi kapal diisi otomatis oleh populateKapalDropdowns() di data.js -->
               </select>
@@ -257,6 +304,8 @@
               <input type="time" id="f-jam-kembali">
             </div>
           </div>
+          <!-- Info card kapal — muncul saat kapal dipilih -->
+          <div id="kapal-info-card"></div>
         </div>
 
         <!-- 2. Jenis Aktivitas -->
@@ -679,15 +728,15 @@
       <div class="mk-row-3">
         <div class="form-group">
           <label>Nama Kapal *</label>
-          <input type="text" id="mk-nama" placeholder="KP. MAKASSAR III">
+          <input type="text" id="mk-nama" oninput="_updateKapalPreview()" placeholder="KP. MAKASSAR III">
         </div>
         <div class="form-group">
           <label>Kode / Call Sign</label>
-          <input type="text" id="mk-callsign" placeholder="P-350">
+          <input type="text" id="mk-callsign" oninput="_updateKapalPreview()" placeholder="P-350">
         </div>
         <div class="form-group">
           <label>Kelas Kapal</label>
-          <select id="mk-kelas">
+          <select id="mk-kelas" onchange="_updateKapalPreview()">
             <option>Patroli</option><option>SAR</option>
             <option>Inspeksi</option><option>Tunda</option><option>Lainnya</option>
           </select>
@@ -698,15 +747,15 @@
       <div class="mk-section">
         <div class="mk-section-title">&#9875; Ship Particulars</div>
         <div class="mk-row-4">
-          <div class="form-group"><label>Panjang Kapal</label><input type="text" id="mk-ukuran" placeholder="28.5 m"></div>
+          <div class="form-group"><label>Panjang Kapal</label><input type="text" id="mk-ukuran" oninput="_updateKapalPreview()" placeholder="28.5 m"></div>
           <div class="form-group"><label>Konstruksi</label><input type="text" id="mk-konstruksi" placeholder="Baja / Aluminium"></div>
-          <div class="form-group"><label>GT</label><input type="text" id="mk-gt" placeholder="98 GT"></div>
-          <div class="form-group"><label>Tahun Buat</label><input type="number" id="mk-tahun" placeholder="2020" min="1900" max="2100"></div>
+          <div class="form-group"><label>GT</label><input type="text" id="mk-gt" oninput="_updateKapalPreview()" placeholder="98 GT"></div>
+          <div class="form-group"><label>Tahun Buat</label><input type="number" id="mk-tahun" oninput="_updateKapalPreview()" placeholder="2020" min="1900" max="2100"></div>
         </div>
         <div class="mk-row-4">
           <div class="form-group"><label>Kapasitas BBM (L)</label><input type="text" id="mk-bbm" placeholder="8,000"></div>
           <div class="form-group"><label>Air Tawar (L)</label><input type="text" id="mk-air" placeholder="2,000"></div>
-          <div class="form-group"><label>Jumlah Crew</label><input type="number" id="mk-crew" placeholder="0" min="1"></div>
+          <div class="form-group"><label>Jumlah Crew</label><input type="number" id="mk-crew" oninput="_updateKapalPreview()" placeholder="0" min="1"></div>
           <div class="form-group"><label>Tanki Harian (L)</label><input type="text" id="mk-tanki" placeholder="500"></div>
         </div>
       </div>
@@ -715,8 +764,8 @@
       <div class="mk-engine-wrap">
         <div class="mk-engine-box">
           <div class="mk-section-title">&#9881; Main Engine</div>
-          <div class="form-group" class="mb-10"><label>Merk / Type</label><input type="text" id="mk-me-merk" placeholder="MAN B&amp;W"></div>
-          <div class="form-group" class="mb-10"><label>Daya (HP)</label><input type="text" id="mk-me-daya" placeholder="2&#xD7;1200 HP"></div>
+          <div class="form-group" class="mb-10"><label>Merk / Type</label><input type="text" id="mk-me-merk" oninput="_updateKapalPreview()" placeholder="MAN B&amp;W"></div>
+          <div class="form-group" class="mb-10"><label>Daya (HP)</label><input type="text" id="mk-me-daya" oninput="_updateKapalPreview()" placeholder="2&#xD7;1200 HP"></div>
           <div class="mk-row-2">
             <div class="form-group"><label>Konsumsi BBM (L/Jam)</label><input type="text" id="mk-me-hpbbm" placeholder="0"></div>
             <div class="form-group"><label>Kecepatan (Knot)</label><input type="text" id="mk-me-kecepatan" placeholder="0"></div>
@@ -735,15 +784,21 @@
 
       <!-- IMO & Status -->
       <div class="mk-row-2">
-        <div class="form-group"><label>IMO / No. Registrasi</label><input type="text" id="mk-imo" placeholder="IMO-1234567"></div>
+        <div class="form-group"><label>IMO / No. Registrasi</label><input type="text" id="mk-imo" oninput="_updateKapalPreview()" placeholder="IMO-1234567"></div>
         <div class="form-group">
           <label>Status Operasional</label>
-          <select id="mk-status">
+          <select id="mk-status" onchange="_updateKapalPreview()">
             <option value="patrol">Patroli</option>
             <option value="standby">Standby</option>
             <option value="maintenance">Maintenance</option>
           </select>
         </div>
+      </div>
+
+      <!-- Preview Card -->
+      <div class="mk-section" id="mk-preview-wrap" style="display:none;">
+        <div class="mk-section-title">👁 Preview Kartu Kapal</div>
+        <div id="mk-preview-card" class="ship-card" style="max-width:320px;margin:0 auto;"></div>
       </div>
 
     </div><!-- /mk-body -->
@@ -769,7 +824,6 @@
      SCRIPTS — satu module tunggal, urutan dijamin
      ══════════════════════════════════════════════ -->
 <script type="module" src="main.js"></script>
-<script type="module" src="app.js"></script>
 <script type="module" src="dashboard.js"></script>
 <script type="module" src="data.js"></script>
 <script type="module" src="logbook.js"></script>
@@ -832,5 +886,85 @@
 </script>
 
 <!-- Logika awak kapal & sinkronisasi nakhoda dikelola sepenuhnya oleh data.js -->
+
+<!-- ── Info Card Kapal: tampil saat user pilih kapal di form ── -->
+<script>
+function onKapalChange(selectEl) {
+  var nama = selectEl ? selectEl.value : '';
+  var wrap = document.getElementById('kapal-info-card');
+  if (!wrap) return;
+
+  if (!nama) {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+
+  // Ambil data dari window.kapalData (diisi oleh data.js)
+  var list = window.kapalData || [];
+  var k = null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].nama === nama) { k = list[i]; break; }
+  }
+
+  // Jika tidak ada di lokal, coba ambil dari Firebase via window._fb
+  if (!k && window._fb && window._fb.getAllKapal) {
+    wrap.style.display = 'block';
+    wrap.innerHTML = '<div style="padding:8px;font-size:12px;color:#5a8aaa;">⏳ Memuat…</div>';
+    window._fb.getAllKapal().then(function(fbList) {
+      for (var j = 0; j < fbList.length; j++) {
+        if (fbList[j].nama === nama) { k = fbList[j]; break; }
+      }
+      if (k) _renderKapalCard(wrap, k);
+      else wrap.style.display = 'none';
+    }).catch(function() { wrap.style.display = 'none'; });
+    return;
+  }
+
+  if (!k) { wrap.style.display = 'none'; return; }
+  _renderKapalCard(wrap, k);
+}
+
+function _renderKapalCard(wrap, k) {
+  var badgeMap = {
+    patrol:      ['kic-green', 'Patroli'],
+    standby:     ['kic-blue',  'Standby'],
+    maintenance: ['kic-red',   'Maintenance'],
+    docking:     ['kic-gold',  'Docking']
+  };
+  var st = badgeMap[k.status] || ['kic-blue', k.status || 'Standby'];
+
+  function row(label, val) {
+    return '<div class="kic-row"><span>' + label + '</span><b>' + (val || '—') + '</b></div>';
+  }
+
+  wrap.innerHTML =
+    '<div class="kic-wrap">' +
+      '<div class="kic-head">' +
+        '<div>' +
+          '<div class="kic-nama">' + (k.nama || '—') + '</div>' +
+          '<div class="kic-tipe">' + (k.tipe || k.kelas || 'Kapal Patroli') + '</div>' +
+        '</div>' +
+        '<span class="kic-badge ' + st[0] + '">' + st[1] + '</span>' +
+      '</div>' +
+      '<div class="kic-body">' +
+        row('Call Sign',    k.callsign || k.callSign) +
+        row('GT',           k.gt) +
+        row('Panjang',      k.panjang) +
+        row('Tahun',        k.tahun || k.tahunBuat) +
+        row('Maks Crew',    k.abkMaks ? k.abkMaks + ' orang' : (k.jumlahCrew ? k.jumlahCrew + ' orang' : null)) +
+        row('IMO',          k.imo) +
+        row('Main Engine',  k.mesin || k.meMerk) +
+        row('Kapasitas BBM',k.bbm   || (k.kapasitasBBM ? k.kapasitasBBM + ' L' : null)) +
+      '</div>' +
+    '</div>';
+  wrap.style.display = 'block';
+}
+
+// Patch _updateKapalPreview jika belum ada (dipakai di modal tambah kapal)
+if (typeof window._updateKapalPreview === 'undefined') {
+  window._updateKapalPreview = function() {};
+}
+</script>
 </body>
 </html>
