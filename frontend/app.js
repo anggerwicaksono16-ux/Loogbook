@@ -333,6 +333,10 @@ async function saveKapal() {
     showToast("✓ Data kapal disimpan!");
     closeModalKapal();
     renderKapal();
+    // ✅ Refresh semua dropdown kapal agar kapal baru langsung muncul
+    if (typeof window.populateKapalDropdowns === "function") {
+      await window.populateKapalDropdowns();
+    }
   } catch (err) {
     showToast("✗ Gagal: " + err.message, "error");
   }
@@ -344,6 +348,10 @@ async function hapusKapal(docId, nama) {
     await window._fb.deleteKapal(nama);
     showToast("✓ Kapal dihapus");
     renderKapal();
+    // ✅ Hapus nama dari semua dropdown
+    if (typeof window.populateKapalDropdowns === "function") {
+      await window.populateKapalDropdowns();
+    }
   } catch (err) {
     showToast("✗ Gagal: " + err.message, "error");
   }
@@ -409,6 +417,10 @@ async function saveAwak() {
       if (el) el.value = "";
     });
     renderAwak();
+    // ✅ Refresh dropdown nakhoda
+    if (typeof window.populateNakhodaDropdown === "function") {
+      await window.populateNakhodaDropdown();
+    }
   } catch (err) {
     showToast("✗ Gagal: " + err.message, "error");
   }
@@ -420,6 +432,10 @@ async function hapusAwak(docId, nama) {
     await window._fb.deleteAwak(docId);
     showToast("✓ Personel dihapus");
     renderAwak();
+    // ✅ Hapus dari dropdown nakhoda
+    if (typeof window.populateNakhodaDropdown === "function") {
+      await window.populateNakhodaDropdown();
+    }
   } catch (err) {
     showToast("✗ Gagal: " + err.message, "error");
   }
@@ -513,18 +529,20 @@ function printReport(data, jenis, periode, kapal) {
     if (!fotoArr || !fotoArr.length) {
       return `<span style="color:#aaa;font-size:11px;">—</span>`;
     }
-    // Tampilkan maks 3 thumbnail dalam sel tabel
     const thumbs = fotoArr.slice(0, 3).map(b64 => {
-      const src = b64.startsWith("data:") ? b64 : `data:image/jpeg;base64,${b64}`;
+      let src = b64;
+      if (!src.startsWith("data:")) src = `data:image/jpeg;base64,${b64}`;
       return `<img src="${src}" alt="foto"
-                   style="width:64px;height:48px;object-fit:cover;
-                          border-radius:4px;border:1px solid #ccc;
-                          display:inline-block;margin:2px;">`;
+                   onerror="this.style.display='none'"
+                   style="width:80px;height:60px;object-fit:cover;
+                          border-radius:5px;border:1px solid #ccc;
+                          display:inline-block;margin:2px;cursor:pointer;"
+                   onclick="window.open('${src}','_blank')">`;
     }).join("");
     const sisa = fotoArr.length > 3
-      ? `<div style="font-size:10px;color:#555;margin-top:2px;text-align:center;">+${fotoArr.length - 3} lagi</div>`
+      ? `<div style="font-size:10px;color:#555;margin-top:2px;text-align:center;font-weight:600;">+${fotoArr.length - 3} foto lagi</div>`
       : "";
-    return `<div style="display:flex;flex-wrap:wrap;gap:2px;align-items:center;">${thumbs}</div>${sisa}`;
+    return `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start;">${thumbs}</div>${sisa}`;
   }
 
   // Helper: badge temuan
@@ -747,15 +765,43 @@ function openDetailLog(log) {
   // Foto (base64)
   const fotoWrap = document.getElementById("dl-foto");
   const lblEl    = document.getElementById("dl-dok-label");
+  const dlAllBtn = document.getElementById("dl-foto-all-btn");
+
   if (fotoWrap) {
     if (log.foto && log.foto.length) {
-      fotoWrap.innerHTML = log.foto.map(b64 =>
-        `<img src="${b64}" alt="foto" style="width:100%;border-radius:6px;margin-bottom:8px;">`
-      ).join("");
+      const kapalName = (log.kapal || "logbook").replace(/\s+/g, "_");
+      const tglStr    = (log.tanggal || "").replace(/-/g, "");
+
+      fotoWrap.innerHTML = log.foto.map((b64, i) => {
+        const src = b64.startsWith("data:") ? b64 : `data:image/jpeg;base64,${b64}`;
+        const fname = `${kapalName}_${tglStr}_foto${i + 1}.jpg`;
+        return `
+        <div style="position:relative;margin-bottom:10px;">
+          <img src="${src}" alt="foto-${i+1}"
+               style="width:100%;border-radius:6px;display:block;">
+          <button onclick="downloadFoto('${src}','${fname}')"
+                  style="position:absolute;bottom:6px;right:6px;
+                         background:rgba(0,0,0,0.65);color:#fff;
+                         border:none;border-radius:6px;padding:4px 10px;
+                         font-size:11px;cursor:pointer;backdrop-filter:blur(4px);
+                         display:flex;align-items:center;gap:4px;"
+                  title="Download foto ini">
+            ⬇ Unduh
+          </button>
+        </div>`;
+      }).join("");
+
       if (lblEl) lblEl.textContent = `DOKUMENTASI (${log.foto.length} foto)`;
+
+      // Tampilkan / update tombol download semua
+      if (dlAllBtn) {
+        dlAllBtn.style.display = "flex";
+        dlAllBtn.onclick = () => downloadSemuaFoto(log.foto, kapalName, tglStr);
+      }
     } else {
       fotoWrap.innerHTML = `<div style="color:#666;font-size:13px;">Tidak ada foto</div>`;
-      if (lblEl) lblEl.textContent = "DOKUMENTASI";
+      if (lblEl)    lblEl.textContent = "DOKUMENTASI";
+      if (dlAllBtn) dlAllBtn.style.display = "none";
     }
   }
 
@@ -765,6 +811,150 @@ function openDetailLog(log) {
 function closeDetailLog() {
   document.getElementById("modal-detail").classList.remove("open");
 }
+
+/* ──────────────────────────────────────────────
+   DOWNLOAD FOTO DOKUMENTASI
+────────────────────────────────────────────── */
+/**
+ * Download satu foto dari src (base64 / URL) dengan nama file fname.
+ */
+function downloadFoto(src, fname) {
+  const a = document.createElement("a");
+  a.href     = src;
+  a.download = fname || "foto-logbook.jpg";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
+ * Download semua foto logbook secara berurutan (delay 350ms antar file
+ * agar browser tidak memblokir multiple download).
+ */
+function downloadSemuaFoto(fotoArr, kapalName, tglStr) {
+  if (!fotoArr || !fotoArr.length) return;
+  fotoArr.forEach((b64, i) => {
+    const src   = b64.startsWith("data:") ? b64 : `data:image/jpeg;base64,${b64}`;
+    const fname = `${kapalName}_${tglStr}_foto${i + 1}.jpg`;
+    setTimeout(() => downloadFoto(src, fname), i * 350);
+  });
+  showToast(`⬇ Mengunduh ${fotoArr.length} foto…`);
+}
+window.downloadFoto      = downloadFoto;
+window.downloadSemuaFoto = downloadSemuaFoto;
+
+/* ──────────────────────────────────────────────
+   POPULATE DROPDOWN KAPAL & NAKHODA
+   Baca dari Firebase, fallback ke data lokal
+────────────────────────────────────────────── */
+window.populateKapalDropdowns = async function() {
+  const ids = ["f-kapal","filter-kapal","lap-kapal","m-kapal"];
+  let namaList = [];
+  try {
+    const list = await window._fb.getAllKapal();
+    namaList = list.map(k => k.nama).filter(Boolean).sort();
+  } catch(e) {
+    // fallback ke window.kapalData jika Firebase gagal
+    namaList = (window.kapalData || []).map(k => k.nama).filter(Boolean).sort();
+  }
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    while (el.options.length > 1) el.remove(1);
+    namaList.forEach(nama => {
+      const o = document.createElement("option");
+      o.value = nama; o.textContent = nama;
+      el.appendChild(o);
+    });
+    if (cur && namaList.includes(cur)) el.value = cur;
+  });
+  console.log(`[populateKapalDropdowns] ✅ ${namaList.length} kapal`);
+};
+
+window.populateNakhodaDropdown = async function() {
+  const el = document.getElementById("f-nakhoda");
+  if (!el) return;
+  let list = [];
+  try {
+    const all = await window._fb.getAllAwak();
+    list = all.filter(a => (a.jabatan||"").toLowerCase().includes("nakhoda"))
+               .map(a => a.nama).filter(Boolean).sort();
+  } catch(e) {
+    list = (window.awakData || []).filter(a => a.jabatan === "Nakhoda")
+                                   .map(a => a.nama).filter(Boolean).sort();
+  }
+  const cur = el.value;
+  while (el.options.length > 1) el.remove(1);
+  list.forEach(nama => {
+    const o = document.createElement("option");
+    o.value = nama; o.textContent = nama;
+    el.appendChild(o);
+  });
+  if (cur && list.includes(cur)) el.value = cur;
+  console.log(`[populateNakhodaDropdown] ✅ ${list.length} nakhoda`);
+};
+
+/* ──────────────────────────────────────────────
+   INFO CARD KAPAL — muncul saat kapal dipilih
+   di form Input Aktivitas
+────────────────────────────────────────────── */
+window.onKapalChange = async function(selectEl) {
+  const nama = selectEl?.value || "";
+  const wrap = document.getElementById("kapal-info-card");
+  if (!wrap) return;
+
+  if (!nama) { wrap.style.display = "none"; return; }
+
+  // Tampilkan skeleton loading dulu
+  wrap.style.display = "block";
+  wrap.innerHTML = `<div class="kic-loading">⏳ Memuat info kapal…</div>`;
+
+  // Ambil data kapal dari Firebase, fallback ke lokal
+  let kapal = null;
+  try {
+    const list = await window._fb.getAllKapal();
+    kapal = list.find(k => k.nama === nama) || null;
+  } catch(e) {
+    kapal = (window.kapalData || []).find(k => k.nama === nama) || null;
+  }
+
+  if (!kapal) { wrap.style.display = "none"; return; }
+
+  // Badge status — identik dengan ship-card di halaman Data Kapal
+  const ST = {
+    patrol      : ["badge badge-green", "Patroli"],
+    standby     : ["badge badge-blue",  "Standby"],
+    maintenance : ["badge badge-red",   "Maintenance"],
+    docking     : ["badge badge-gold",  "Docking"],
+  };
+  const [badgeCls, badgeLabel] = ST[kapal.status] || ["badge badge-blue", kapal.status || "—"];
+
+  // Row helper
+  const row = (label, val) =>
+    `<div class="ship-info-row"><span>${label}</span><b>${val || "—"}</b></div>`;
+
+  wrap.innerHTML = `
+    <div class="kic-label">ℹ️ Info Kapal Terpilih</div>
+    <div class="ship-card kic-card">
+      <div class="ship-card-header">
+        <div class="ship-card-name">${kapal.nama || "—"}</div>
+        <span class="${badgeCls}">${badgeLabel}</span>
+      </div>
+      <div class="ship-card-body">
+        ${row("Call Sign",    kapal.callSign)}
+        ${row("Kelas",        kapal.kelas)}
+        ${row("GT",           kapal.gt)}
+        ${row("Panjang",      kapal.panjang)}
+        ${row("Tahun",        kapal.tahunBuat)}
+        ${row("Crew",         kapal.jumlahCrew ? kapal.jumlahCrew + " orang" : null)}
+        ${row("IMO",          kapal.imo)}
+        ${row("Main Engine",  kapal.meMerk)}
+        ${row("Daya ME",      kapal.meDaya)}
+        ${row("Kapasitas BBM",kapal.kapasitasBBM ? kapal.kapasitasBBM + " L" : null)}
+      </div>
+    </div>`;
+};
 
 /* ──────────────────────────────────────────────
    INISIALISASI
@@ -777,10 +967,16 @@ window.addEventListener("firebase-ready", () => {
   // Set tanggal hari ini di form
   const tgl = document.getElementById("f-tanggal");
   if (tgl) tgl.value = new Date().toISOString().split("T")[0];
+
+  // ✅ Isi dropdown kapal & nakhoda dari Firebase
+  if (typeof window.populateKapalDropdowns  === "function") window.populateKapalDropdowns();
+  if (typeof window.populateNakhodaDropdown === "function") window.populateNakhodaDropdown();
 });
 
 // Fallback jika firebase-ready sudah terjadi sebelum listener terpasang
 if (window._fb) {
   generateNoRefDisplay();
   refreshDashboard();
+  if (typeof window.populateKapalDropdowns  === "function") window.populateKapalDropdowns();
+  if (typeof window.populateNakhodaDropdown === "function") window.populateNakhodaDropdown();
 }
