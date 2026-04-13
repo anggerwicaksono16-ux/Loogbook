@@ -704,7 +704,20 @@
         </div>
       </div>
       <div class="detail-right">
-        <div class="detail-dok-label" id="dl-dok-label">DOKUMENTASI</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="detail-dok-label" id="dl-dok-label">DOKUMENTASI</div>
+          <button id="dl-foto-all-btn"
+                  style="display:none;align-items:center;gap:5px;
+                         background:rgba(0,198,198,0.15);color:#00c6c6;
+                         border:1px solid rgba(0,198,198,0.3);border-radius:7px;
+                         padding:5px 12px;font-size:11px;font-weight:600;
+                         cursor:pointer;transition:background .2s;"
+                  onmouseover="this.style.background='rgba(0,198,198,0.28)'"
+                  onmouseout="this.style.background='rgba(0,198,198,0.15)'"
+                  title="Download semua foto">
+            ⬇ Unduh Semua
+          </button>
+        </div>
         <div class="detail-dok-grid" id="dl-foto"></div>
       </div>
     </div>
@@ -967,6 +980,103 @@ function _renderKapalCard(wrap, k) {
 if (typeof window._updateKapalPreview === 'undefined') {
   window._updateKapalPreview = function() {};
 }
+
+/* ══════════════════════════════════════════════════════════
+   PATCH — SISTEM DOWNLOAD FOTO DOKUMENTASI
+   Override openDetailLog agar setiap foto punya tombol
+   Download dan ada tombol "Unduh Semua" di panel DOKUMENTASI.
+   ══════════════════════════════════════════════════════════ */
+(function _patchDownloadFoto() {
+
+  /* ── Helper: download satu file dari src base64 ── */
+  window.downloadFoto = function(src, fname) {
+    const a    = document.createElement("a");
+    a.href     = src;
+    a.download = fname || "foto-logbook.jpg";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  /* ── Helper: download semua foto berurutan ── */
+  window.downloadSemuaFoto = function(fotoArr, kapalName, tglStr) {
+    if (!fotoArr || !fotoArr.length) return;
+    fotoArr.forEach(function(b64, i) {
+      var src   = b64.startsWith("data:") ? b64 : "data:image/jpeg;base64," + b64;
+      var fname = kapalName + "_" + tglStr + "_foto" + (i + 1) + ".jpg";
+      setTimeout(function() { window.downloadFoto(src, fname); }, i * 350);
+    });
+    if (typeof showToast === "function")
+      showToast("⬇ Mengunduh " + fotoArr.length + " foto…");
+  };
+
+  /* ── Override openDetailLog ── */
+  function _doOverride() {
+    if (typeof window.openDetailLog !== "function") {
+      setTimeout(_doOverride, 150);
+      return;
+    }
+
+    var _origOpenDetail = window.openDetailLog;
+
+    window.openDetailLog = function(log) {
+      // Jalankan fungsi asli dulu
+      _origOpenDetail(log);
+
+      // Ambil elemen foto
+      var fotoWrap = document.getElementById("dl-foto");
+      var lblEl    = document.getElementById("dl-dok-label");
+      var dlAllBtn = document.getElementById("dl-foto-all-btn");
+
+      if (!fotoWrap) return;
+
+      var fotoArr = log.foto || [];
+      if (!fotoArr.length) {
+        if (dlAllBtn) dlAllBtn.style.display = "none";
+        return;
+      }
+
+      var kapalName = (log.kapal || "logbook").replace(/\s+/g, "_");
+      var tglStr    = (log.tanggal || "").replace(/-/g, "");
+
+      // Re-render foto dengan tombol download
+      fotoWrap.innerHTML = fotoArr.map(function(b64, i) {
+        var src   = b64.startsWith("data:") ? b64 : "data:image/jpeg;base64," + b64;
+        var fname = kapalName + "_" + tglStr + "_foto" + (i + 1) + ".jpg";
+        return (
+          '<div style="position:relative;margin-bottom:10px;">' +
+            '<img src="' + src + '" alt="foto-' + (i+1) + '" ' +
+                 'style="width:100%;border-radius:6px;display:block;">' +
+            '<button onclick="window.downloadFoto(\'' + src + '\',\'' + fname + '\')" ' +
+                    'style="position:absolute;bottom:7px;right:7px;' +
+                           'background:rgba(0,0,0,0.65);color:#fff;' +
+                           'border:none;border-radius:6px;padding:4px 10px;' +
+                           'font-size:11px;cursor:pointer;' +
+                           'backdrop-filter:blur(4px);' +
+                           'display:flex;align-items:center;gap:4px;" ' +
+                    'title="Download foto ini">⬇ Unduh</button>' +
+          '</div>'
+        );
+      }).join("");
+
+      if (lblEl) lblEl.textContent = "DOKUMENTASI (" + fotoArr.length + " foto)";
+
+      // Tampilkan tombol Unduh Semua
+      if (dlAllBtn) {
+        dlAllBtn.style.display = "flex";
+        dlAllBtn.onclick = function() {
+          window.downloadSemuaFoto(fotoArr, kapalName, tglStr);
+        };
+      }
+    };
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", _doOverride);
+  } else {
+    _doOverride();
+  }
+})();
 </script>
 </body>
 </html>
