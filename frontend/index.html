@@ -13,107 +13,6 @@
   <!-- Firebase Extra Styles -->
   <link rel="stylesheet" href="firebase-extra.css">
 
-  <!-- Kondisi Mesin → Status Kapal Dashboard -->
-  <style>
-    .ship-status-list { display:flex; flex-direction:column; gap:6px; }
-
-    .ship-mini-row {
-      display:flex; align-items:flex-start; gap:10px;
-      padding:8px 10px; border-radius:8px;
-      background:rgba(255,255,255,0.03);
-      transition:background .2s;
-    }
-    .ship-mini-row:hover { background:rgba(255,255,255,0.06); }
-
-    /* Highlight kapal bermasalah */
-    .ship-row-rusak {
-      background:rgba(224,82,82,0.08) !important;
-      border:1px solid rgba(224,82,82,0.25);
-    }
-    .ship-row-rusak:hover { background:rgba(224,82,82,0.14) !important; }
-
-    .ship-mini-dot {
-      width:9px; height:9px; border-radius:50%;
-      flex-shrink:0; margin-top:5px;
-    }
-    .dot-green  { background:#4ecb71; box-shadow:0 0 6px #4ecb7188; }
-    .dot-cyan   { background:#00c8e0; box-shadow:0 0 6px #00c8e088; }
-    .dot-red    { background:#e05252; box-shadow:0 0 6px #e0525288; }
-    .dot-gold   { background:#f0c040; box-shadow:0 0 6px #f0c04088; }
-
-    .ship-mini-info { flex:1; min-width:0; }
-    .ship-mini-name { font-size:13px; font-weight:600; color:#cde0f0; }
-
-    /* Keterangan gangguan — di bawah nama kapal */
-    .ship-mini-ket {
-      font-size:10.5px; color:#e07070; margin-top:2px;
-      line-height:1.4; font-family:'JetBrains Mono',monospace;
-    }
-
-    /* Badge status di kanan */
-    .ship-mini-badge {
-      font-size:10px; font-weight:600;
-      padding:2px 8px; border-radius:20px;
-      background:rgba(0,200,224,0.15); color:#00c8e0;
-      white-space:nowrap; flex-shrink:0; align-self:flex-start;
-    }
-    .badge-rusak {
-      background:rgba(224,82,82,0.18) !important;
-      color:#e07070 !important;
-      animation:pulse-rusak 2s infinite;
-    }
-    @keyframes pulse-rusak {
-      0%,100% { opacity:1; }
-      50%      { opacity:0.6; }
-    }
-
-    /* ── Info Card Kapal ── */
-    #kapal-info-card {
-      display: none;
-      margin-top: 14px;
-      animation: kic-in .2s ease;
-    }
-    @keyframes kic-in {
-      from { opacity:0; transform:translateY(-4px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-    .kic-wrap {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(0,200,224,0.2);
-      border-radius: 12px;
-      overflow: hidden;
-      max-width: 340px;
-    }
-    .kic-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px 8px;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
-    }
-    .kic-nama { font-size: 14px; font-weight: 700; color: #cde0f0; }
-    .kic-tipe { font-size: 11px; color: #5a8aaa; margin-top: 2px; }
-    .kic-badge {
-      font-size: 10px; font-weight: 700;
-      padding: 3px 10px; border-radius: 20px;
-      flex-shrink: 0;
-    }
-    .kic-green { background:rgba(78,203,113,.18); color:#4ecb71; }
-    .kic-blue  { background:rgba(0,200,224,.15);  color:#00c8e0; }
-    .kic-red   { background:rgba(224,82,82,.18);  color:#e05252; }
-    .kic-gold  { background:rgba(240,192,64,.18); color:#f0c040; }
-    .kic-body  { padding: 6px 14px 10px; }
-    .kic-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 5px 0;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      font-size: 12px;
-    }
-    .kic-row:last-child { border-bottom: none; }
-    .kic-row span { color: #5a8aaa; }
-    .kic-row b    { color: #cde0f0; }
-  </style>
 
 </head>
 <body>
@@ -514,7 +413,11 @@
         <table>
           <thead>
             <tr>
-              <th>No. Ref</th><th>Tanggal</th><th>Kapal</th><th>Nakhoda</th>
+              <th>No. Ref</th>
+              <th id="th-tanggal" onclick="toggleSortTanggal()" style="cursor:pointer;user-select:none;white-space:nowrap;">
+                Tanggal <span id="sort-icon" style="font-size:11px;margin-left:3px;">↕</span>
+              </th>
+              <th>Kapal</th><th>Nakhoda</th>
               <th>Aktivitas</th><th>Wilayah</th><th>Deskripsi</th><th>Status</th><th>Aksi</th>
             </tr>
           </thead>
