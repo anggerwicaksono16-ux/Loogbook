@@ -307,6 +307,45 @@ function renderRecentTable(list) {
 //  ████  LOGBOOK  ████
 // ══════════════════════════════════════════════
 let _allLogbook = [];
+// "asc" = terlama ke terbaru, "desc" = terbaru ke terlama, null = default (urutan Firebase)
+let _sortTanggal = "desc";
+
+// Update ikon sort pada header kolom tanggal
+function _updateSortIcon() {
+  const iconEl = document.getElementById("sort-icon");
+  const thEl   = document.getElementById("th-tanggal");
+  if (!iconEl || !thEl) return;
+  if (_sortTanggal === "desc") {
+    iconEl.textContent = "↓";
+    iconEl.className   = "sort-icon-active";
+    thEl.title         = "Urut: Terbaru → Terlama (klik untuk balik)";
+  } else if (_sortTanggal === "asc") {
+    iconEl.textContent = "↑";
+    iconEl.className   = "sort-icon-active";
+    thEl.title         = "Urut: Terlama → Terbaru (klik untuk balik)";
+  } else {
+    iconEl.textContent = "↕";
+    iconEl.className   = "";
+    thEl.title         = "Klik untuk mengurutkan berdasarkan tanggal";
+  }
+}
+
+// Urutkan array logbook berdasarkan _sortTanggal
+function _applySort(list) {
+  if (!_sortTanggal) return list;
+  return [...list].sort((a, b) => {
+    const tA = new Date(a.tanggal + "T" + (a.jamBerangkat || "00:00")).getTime() || 0;
+    const tB = new Date(b.tanggal + "T" + (b.jamBerangkat || "00:00")).getTime() || 0;
+    return _sortTanggal === "asc" ? tA - tB : tB - tA;
+  });
+}
+
+// Toggle sort saat header diklik
+window.toggleSortTanggal = function() {
+  _sortTanggal = _sortTanggal === "desc" ? "asc" : "desc";
+  _updateSortIcon();
+  window.filterLogbook();
+};
 
 window.loadLogbook = async function() {
   const tbody = document.getElementById("tbl-logbook-body");
@@ -315,7 +354,8 @@ window.loadLogbook = async function() {
   try {
     _allLogbook = await getAllLogbook();
     _rebuildLatestCache(_allLogbook);
-    renderLogbookTable(_allLogbook);
+    _updateSortIcon();
+    renderLogbookTable(_applySort(_allLogbook));
   } catch(err) {
     tbody.innerHTML = `<tr><td colspan="10" class="text-center text-red">Gagal: ${err.message}</td></tr>`;
   }
@@ -376,7 +416,7 @@ window.filterLogbook = function() {
   if (jenis)  f = f.filter(l => l.jenisAktivitas === jenis);
   if (dari)   f = f.filter(l => l.tanggal >= dari);
   if (sampai) f = f.filter(l => l.tanggal <= sampai);
-  renderLogbookTable(f);
+  renderLogbookTable(_applySort(f));
 };
 
 window.hapusLogbook = async function(docId) {
