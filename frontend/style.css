@@ -553,6 +553,55 @@ input[type="date"] {
 .ship-card.standby     { border-left: 3px solid var(--gold); }
 .ship-card.maintenance { border-left: 3px solid var(--red); }
 
+/* ── Ship Card Sub-components ── */
+.ship-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dce8f0;
+}
+
+.ship-card-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 17px;
+  letter-spacing: 2px;
+  color: #0a1628;
+  line-height: 1.2;
+}
+
+.ship-card-body {
+  margin-bottom: 14px;
+}
+
+.ship-card-body .ship-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+.ship-card-body .ship-info-row span {
+  color: #4a6080;
+}
+
+.ship-card-body .ship-info-row b {
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #1a2a3a;
+  text-align: right;
+}
+
+.ship-card-footer {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #dce8f0;
+}
+
 .ship-name { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 2px; color: #0a1628; margin-bottom: 4px; }
 .ship-type { font-size: 11px; color: #4a6080; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
 
@@ -1207,4 +1256,149 @@ input[type="file"]:hover { border-color: var(--cyan); }
   .user-info   { padding: 6px 8px; }
   .btn-logout span { display: none; }
   .btn-logout  { padding: 8px 10px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STATUS KAPAL MINI — Dashboard Panel
+   ══════════════════════════════════════════════════════════════ */
+.ship-status-list { display:flex; flex-direction:column; gap:6px; }
+
+.ship-mini-row {
+  display:flex; align-items:flex-start; gap:10px;
+  padding:8px 10px; border-radius:8px;
+  background:rgba(255,255,255,0.03);
+  transition:background .2s;
+}
+.ship-mini-row:hover { background:rgba(255,255,255,0.06); }
+.ship-row-rusak {
+  background:rgba(224,82,82,0.08) !important;
+  border:1px solid rgba(224,82,82,0.25);
+}
+.ship-row-rusak:hover { background:rgba(224,82,82,0.14) !important; }
+.ship-mini-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.dot-green { background:#4ecb71; box-shadow:0 0 6px #4ecb7188; }
+.dot-cyan  { background:#00c8e0; box-shadow:0 0 6px #00c8e088; }
+.dot-red   { background:#e05252; box-shadow:0 0 6px #e0525288; }
+.dot-gold  { background:#f0c040; box-shadow:0 0 6px #f0c04088; }
+.ship-mini-info { flex:1; min-width:0; }
+.ship-mini-name { font-size:13px; font-weight:600; color:#cde0f0; }
+.ship-mini-ket {
+  font-size:10.5px; color:#e07070; margin-top:2px;
+  line-height:1.4; font-family:'JetBrains Mono',monospace;
+}
+.ship-mini-badge {
+  font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px;
+  background:rgba(0,200,224,0.15); color:#00c8e0;
+  white-space:nowrap; flex-shrink:0; align-self:flex-start;
+}
+.badge-rusak {
+  background:rgba(224,82,82,0.18) !important;
+  color:#e07070 !important;
+  animation:pulse-rusak 2s infinite;
+}
+@keyframes pulse-rusak { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+
+/* ══════════════════════════════════════════════════════════════
+   INFO CARD KAPAL — Form Input Aktivitas
+   ══════════════════════════════════════════════════════════════ */
+#kapal-info-card { animation: kic-fadein .2s ease; }
+@keyframes kic-fadein {
+  from { opacity:0; transform:translateY(-4px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.kic-label {
+  font-size:11px; font-weight:600; color:#5a8aaa;
+  text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px;
+}
+
+/* ship-info-row — baris label:nilai di dalam card */
+.ship-info-row {
+  display:flex; justify-content:space-between; align-items:baseline;
+  padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.05);
+  font-size:12px;
+}
+.ship-info-row:last-child { border-bottom:none; }
+.sir-label { color:#5a8aaa; flex-shrink:0; margin-right:8px; }
+.sir-val   { color:#cde0f0; font-weight:600; text-align:right; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   INFO CARD KAPAL — Popup detail kapal saat dipilih di form
+   (dipindahkan dari <style> inline di index.html)
+   ══════════════════════════════════════════════════════════════ */
+#kapal-info-card {
+  display: none;
+  margin-top: 14px;
+  animation: kic-in .2s ease;
+}
+
+@keyframes kic-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.kic-wrap {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(0,200,224,0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  max-width: 340px;
+}
+
+.kic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.kic-nama  { font-size: 14px; font-weight: 700; color: #cde0f0; }
+.kic-tipe  { font-size: 11px; color: #5a8aaa; margin-top: 2px; }
+
+.kic-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.kic-green { background: rgba(78,203,113,.18);  color: #4ecb71; }
+.kic-blue  { background: rgba(0,200,224,.15);   color: #00c8e0; }
+.kic-red   { background: rgba(224,82,82,.18);   color: #e05252; }
+.kic-gold  { background: rgba(240,192,64,.18);  color: #f0c040; }
+
+.kic-body { padding: 6px 14px 10px; }
+
+.kic-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 12px;
+}
+
+.kic-row:last-child { border-bottom: none; }
+.kic-row span { color: #5a8aaa; }
+.kic-row b    { color: #cde0f0; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   SORT TANGGAL — Header kolom Tanggal di tabel Riwayat Logbook
+   (dipindahkan dari output main.js / index.html)
+   ══════════════════════════════════════════════════════════════ */
+#th-tanggal {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background .15s;
+}
+
+#th-tanggal:hover { background: rgba(0,200,224,0.1); }
+
+.sort-icon-active {
+  color: #00c8e0;
+  font-weight: 700;
 }
